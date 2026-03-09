@@ -2,17 +2,10 @@ import React from "react";
 import { motion } from "framer-motion";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 
-const SUMMARY = [
-  { label: "Overall Risk Index", value: 67, change: "+3", trend: "up", color: "#f97316" },
-  { label: "Systemic Stress", value: 42, change: "-5", trend: "down", color: "#22d3ee" },
-  { label: "Narrative Divergence", value: 78, change: "+12", trend: "up", color: "#a78bfa" },
-  { label: "Tail Risk Premium", value: 55, change: "+1", trend: "flat", color: "#fbbf24" },
-];
-
-export default function RiskSummaryCards() {
+export default function RiskSummaryCards({ items = [] }) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-      {SUMMARY.map((item, i) => (
+      {items.map((item, i) => (
         <motion.div
           key={item.label}
           initial={{ opacity: 0, y: 20 }}
@@ -31,9 +24,13 @@ export default function RiskSummaryCards() {
               ) : (
                 <Minus className="w-3 h-3 text-slate-500" />
               )}
-              <span className={`text-xs font-medium ${
-                item.trend === "up" ? "text-red-400" : item.trend === "down" ? "text-emerald-400" : "text-slate-500"
-              }`}>{item.change}</span>
+              <span
+                className={`text-xs font-medium ${
+                  item.trend === "up" ? "text-red-400" : item.trend === "down" ? "text-emerald-400" : "text-slate-500"
+                }`}
+              >
+                {item.change}
+              </span>
             </div>
           </div>
           <div className="mt-2 h-1 rounded-full bg-white/10 overflow-hidden">
@@ -47,6 +44,10 @@ export default function RiskSummaryCards() {
           </div>
         </motion.div>
       ))}
+
+      {items.length === 0 && (
+        <div className="col-span-2 lg:col-span-4 text-sm text-slate-500">Loading risk summary...</div>
+      )}
     </div>
   );
 }

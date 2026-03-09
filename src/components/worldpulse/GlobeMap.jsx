@@ -1,25 +1,27 @@
 import React from "react";
 import { MapContainer, TileLayer, ZoomControl } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import { HOTSPOTS, ARCS } from "./MacroMapData";
 import HotspotMarker from "./HotspotMarker";
 import MapArcLayer from "./MapArcLayer";
 
-export default function GlobeMap({ onSelectRegion }) {
+export default function GlobeMap({ hotspots = [], arcs = [], manualArc = null, onSelectCountry = () => {} }) {
   return (
-    <div className="relative w-full h-full">
+    <div className="relative h-full w-full">
       <MapContainer
-        center={[25, 15]}
-        zoom={2}
-        minZoom={1.8}
+        center={[18, 12]}
+        zoom={2.7}
+        minZoom={2.4}
         maxZoom={6}
-        className="w-full h-full"
+        zoomSnap={0.1}
+        zoomDelta={0.25}
+        className="h-full w-full"
         zoomControl={false}
         attributionControl={false}
         scrollWheelZoom={true}
         worldCopyJump={false}
-        maxBounds={[[-85, -179.9], [85, 179.9]]}
+        maxBounds={[[-62, -179.9], [84, 179.9]]}
         maxBoundsViscosity={1}
+        preferCanvas={true}
         style={{ background: "#0d1529" }}
       >
         <TileLayer
@@ -28,20 +30,15 @@ export default function GlobeMap({ onSelectRegion }) {
           maxZoom={6}
           noWrap={true}
         />
-        <MapArcLayer arcs={ARCS} hotspots={HOTSPOTS} />
-        {HOTSPOTS.map((spot) => (
-          <HotspotMarker
-            key={spot.id}
-            spot={spot}
-            onClick={() => onSelectRegion(spot)}
-          />
+        <MapArcLayer arcs={arcs} hotspots={hotspots} manualArc={manualArc} />
+        {hotspots.map((spot) => (
+          <HotspotMarker key={spot.id} spot={spot} onClick={() => onSelectCountry(spot)} />
         ))}
         <ZoomControl position="bottomright" />
       </MapContainer>
 
-      {/* Hint */}
-      <div className="absolute bottom-10 left-4 z-[1000] text-[11px] text-slate-500 pointer-events-none select-none">
-        Scroll to zoom · Click hotspots for briefing
+      <div className="pointer-events-none absolute bottom-10 left-4 z-[1000] select-none text-[11px] text-slate-500">
+        Scroll to zoom | Click two countries to trace spillover
       </div>
     </div>
   );

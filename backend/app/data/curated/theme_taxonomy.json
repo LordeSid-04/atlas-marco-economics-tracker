@@ -1,0 +1,204 @@
+{
+  "feeds": [
+    {
+      "source": "Federal Reserve",
+      "url": "https://www.federalreserve.gov/feeds/press_monetary.xml"
+    },
+    {
+      "source": "IMF",
+      "url": "https://www.imf.org/en/News/RSS"
+    },
+    {
+      "source": "World Bank",
+      "url": "https://www.worldbank.org/en/news/all?output=rss"
+    },
+    {
+      "source": "European Central Bank",
+      "url": "https://www.ecb.europa.eu/rss/press.html"
+    },
+    {
+      "source": "Bank of England",
+      "url": "https://www.bankofengland.co.uk/rss/news"
+    },
+    {
+      "source": "BLS",
+      "url": "https://www.bls.gov/feed/news_release/latest.rss"
+    },
+    {
+      "source": "OECD",
+      "url": "https://www.oecd.org/newsroom/rss.xml"
+    },
+    {
+      "source": "BIS",
+      "url": "https://www.bis.org/doclist/all_pressrels.rss"
+    },
+    {
+      "source": "Reuters Business",
+      "url": "https://feeds.reuters.com/reuters/businessNews"
+    },
+    {
+      "source": "Reuters World",
+      "url": "https://feeds.reuters.com/Reuters/worldNews"
+    }
+  ],
+  "themes": [
+    {
+      "id": "inflation-shock",
+      "label": "Inflation Shock",
+      "keywords": [
+        { "term": "inflation", "weight": 2.4 },
+        { "term": "cpi", "weight": 2.2 },
+        { "term": "core inflation", "weight": 2.6 },
+        { "term": "price pressures", "weight": 1.8 },
+        { "term": "ppi", "weight": 1.6 }
+      ],
+      "factor_exposure": {
+        "inflation": 1.0,
+        "rates": 0.6,
+        "policy": 0.5,
+        "fx": 0.3
+      }
+    },
+    {
+      "id": "monetary-policy",
+      "label": "Monetary Policy Pivot",
+      "keywords": [
+        { "term": "rate hike", "weight": 2.5 },
+        { "term": "rate cut", "weight": 2.5 },
+        { "term": "policy rate", "weight": 1.8 },
+        { "term": "central bank", "weight": 1.7 },
+        { "term": "fomc", "weight": 2.0 },
+        { "term": "forward guidance", "weight": 1.5 }
+      ],
+      "factor_exposure": {
+        "policy": 1.0,
+        "rates": 0.9,
+        "liquidity": 0.6,
+        "fx": 0.3
+      }
+    },
+    {
+      "id": "growth-slowdown",
+      "label": "Growth Slowdown",
+      "keywords": [
+        { "term": "slowdown", "weight": 2.2 },
+        { "term": "recession", "weight": 2.5 },
+        { "term": "gdp", "weight": 1.6 },
+        { "term": "manufacturing contraction", "weight": 2.0 },
+        { "term": "unemployment", "weight": 1.6 }
+      ],
+      "factor_exposure": {
+        "growth": 1.0,
+        "contagion": 0.6,
+        "volatility": 0.5,
+        "credit": 0.3
+      }
+    },
+    {
+      "id": "energy-supply",
+      "label": "Energy Supply Stress",
+      "keywords": [
+        { "term": "oil supply", "weight": 2.4 },
+        { "term": "opec", "weight": 2.0 },
+        { "term": "lng", "weight": 1.8 },
+        { "term": "pipeline", "weight": 1.6 },
+        { "term": "energy shock", "weight": 2.3 }
+      ],
+      "factor_exposure": {
+        "commodity": 1.0,
+        "inflation": 0.6,
+        "geopolitics": 0.5,
+        "fx": 0.2
+      }
+    },
+    {
+      "id": "geopolitical-risk",
+      "label": "Geopolitical Escalation",
+      "keywords": [
+        { "term": "sanctions", "weight": 2.1 },
+        { "term": "conflict", "weight": 2.3 },
+        { "term": "military", "weight": 1.9 },
+        { "term": "ceasefire", "weight": 1.4 },
+        { "term": "geopolitical", "weight": 2.0 }
+      ],
+      "factor_exposure": {
+        "geopolitics": 1.0,
+        "commodity": 0.4,
+        "volatility": 0.7,
+        "contagion": 0.5
+      }
+    },
+    {
+      "id": "banking-liquidity",
+      "label": "Banking Liquidity Stress",
+      "keywords": [
+        { "term": "bank liquidity", "weight": 2.5 },
+        { "term": "deposit flight", "weight": 2.2 },
+        { "term": "credit spreads", "weight": 1.8 },
+        { "term": "funding stress", "weight": 2.1 },
+        { "term": "balance sheet", "weight": 1.4 }
+      ],
+      "factor_exposure": {
+        "liquidity": 1.0,
+        "credit": 0.8,
+        "contagion": 0.6,
+        "volatility": 0.4
+      }
+    },
+    {
+      "id": "trade-regulation",
+      "label": "Trade and Regulation Shift",
+      "keywords": [
+        { "term": "tariff", "weight": 2.1 },
+        { "term": "export controls", "weight": 2.2 },
+        { "term": "regulatory", "weight": 1.8 },
+        { "term": "trade policy", "weight": 2.0 },
+        { "term": "compliance", "weight": 1.2 }
+      ],
+      "factor_exposure": {
+        "policy": 0.8,
+        "growth": 0.4,
+        "fx": 0.4,
+        "technology": 0.5
+      }
+    }
+  ],
+  "region_keywords": {
+    "us": ["united states", "u.s.", "us", "federal reserve", "washington"],
+    "europe": ["europe", "euro area", "ecb", "eu", "germany", "france", "ukraine", "russia"],
+    "china": ["china", "beijing", "pboc", "yuan"],
+    "japan": ["japan", "boj", "tokyo", "yen"],
+    "middleeast": ["middle east", "saudi", "uae", "israel", "iran", "opec"],
+    "em": ["emerging markets", "em", "india", "brazil", "mexico", "south africa", "turkey"]
+  },
+  "asset_keywords": {
+    "rates": ["yield", "treasury", "bund", "policy rate", "bond market"],
+    "fx": ["fx", "currency", "dollar", "yen", "euro", "exchange rate"],
+    "equities": ["equities", "stocks", "index", "valuation"],
+    "commodities": ["oil", "gas", "copper", "gold", "commodity"],
+    "credit": ["credit", "spreads", "funding", "bank lending", "default"]
+  },
+  "severity_keywords": [
+    { "term": "unexpected", "weight": 1.4 },
+    { "term": "sharply", "weight": 1.2 },
+    { "term": "surge", "weight": 1.3 },
+    { "term": "stress", "weight": 1.2 },
+    { "term": "warning", "weight": 1.1 },
+    { "term": "emergency", "weight": 1.5 }
+  ],
+  "source_quality_weights": {
+    "Federal Reserve": 0.95,
+    "IMF": 0.92,
+    "World Bank": 0.9,
+    "European Central Bank": 0.92,
+    "Bank of England": 0.92,
+    "BLS": 0.94,
+    "OECD": 0.9,
+    "BIS": 0.91,
+    "Reuters Business": 0.86,
+    "Reuters World": 0.86,
+    "Reuters": 0.85,
+    "Bloomberg": 0.85,
+    "Financial Times": 0.82
+  }
+}

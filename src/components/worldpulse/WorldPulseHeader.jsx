@@ -1,7 +1,7 @@
 import React from "react";
 import { Activity, Zap, Globe } from "lucide-react";
 
-export default function WorldPulseHeader() {
+export default function WorldPulseHeader({ activeRegions = 0, transmissionArcs = 0 }) {
   return (
     <div className="px-4 sm:px-6 py-4 md:py-5 flex items-center justify-between bg-transparent border-b border-white/[0.06]">
       <div className="flex items-center gap-3 sm:gap-4">
@@ -17,11 +17,11 @@ export default function WorldPulseHeader() {
       <div className="hidden lg:flex items-center gap-5 text-sm text-slate-300">
         <div className="flex items-center gap-2">
           <Globe className="w-4 h-4" />
-          <span>6 Regions Active</span>
+          <span>{activeRegions} Countries Active</span>
         </div>
         <div className="flex items-center gap-2">
           <Zap className="w-4 h-4 text-amber-400" />
-          <span>6 Transmission Arcs</span>
+          <span>{transmissionArcs} Transmission Arcs</span>
         </div>
       </div>
     </div>

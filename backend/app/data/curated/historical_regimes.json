@@ -1,0 +1,103 @@
+{
+  "regimes": [
+    {
+      "id": "gfc",
+      "year": 2008,
+      "label": "Global Financial Crisis",
+      "x": 10,
+      "y": 50,
+      "color": "#ef4444",
+      "size": 4,
+      "description": "Lehman collapse triggered a global deleveraging cycle. Credit markets froze, equities dropped 50%+, and coordinated central bank action began unconventional monetary policy.",
+      "drivers": ["Credit contagion", "Bank insolvency", "Housing collapse"],
+      "assets": "Equities -55%, Credit spreads 600bp+, Gold +25%, USD safe haven bid",
+      "feature_vector": {"inflation": -0.4, "growth": -1.0, "policy": 0.8, "volatility": 1.0, "liquidity": -1.0, "contagion": 1.0, "commodity": -0.5, "fx": 0.6, "rates": -0.2, "technology": -0.3, "geopolitics": 0.2}
+    },
+    {
+      "id": "euro",
+      "year": 2011,
+      "label": "European Debt Crisis",
+      "x": 22,
+      "y": 35,
+      "color": "#f97316",
+      "size": 3,
+      "description": "Sovereign debt fears in peripheral Europe threatened EMU integrity. ECB backstops became central to market stabilization.",
+      "drivers": ["Sovereign debt", "Bank-sovereign nexus", "Austerity"],
+      "assets": "EUR -15%, Peripheral spreads 500bp+, Bunds rally",
+      "feature_vector": {"inflation": -0.2, "growth": -0.7, "policy": 0.9, "volatility": 0.7, "liquidity": -0.4, "contagion": 0.8, "commodity": -0.2, "fx": 0.8, "rates": -0.3, "technology": -0.2, "geopolitics": 0.3}
+    },
+    {
+      "id": "taper",
+      "year": 2013,
+      "label": "Taper Tantrum",
+      "x": 35,
+      "y": 60,
+      "color": "#fbbf24",
+      "size": 2.5,
+      "description": "Fed taper signals triggered abrupt EM sell-off and USD repricing, exposing global liquidity dependency.",
+      "drivers": ["Fed policy shift", "EM vulnerability", "USD strength"],
+      "assets": "EM FX -10%, US 10Y +130bp, EM equities -15%",
+      "feature_vector": {"inflation": 0.1, "growth": 0.2, "policy": 1.0, "volatility": 0.6, "liquidity": -0.6, "contagion": 0.7, "commodity": -0.1, "fx": 1.0, "rates": 0.9, "technology": 0.0, "geopolitics": 0.1}
+    },
+    {
+      "id": "china2015",
+      "year": 2015,
+      "label": "China Devaluation",
+      "x": 48,
+      "y": 40,
+      "color": "#22d3ee",
+      "size": 2.5,
+      "description": "PBoC devalued CNY and triggered global risk-off, revealing China-linked capital flow fragility.",
+      "drivers": ["CNY devaluation", "Capital outflows", "Growth fears"],
+      "assets": "Global equities -10%, Commodities -20%, VIX spike to 40",
+      "feature_vector": {"inflation": -0.3, "growth": -0.6, "policy": 0.5, "volatility": 0.8, "liquidity": -0.3, "contagion": 0.7, "commodity": -0.7, "fx": 0.9, "rates": -0.1, "technology": -0.1, "geopolitics": 0.3}
+    },
+    {
+      "id": "covid",
+      "year": 2020,
+      "label": "COVID Shock",
+      "x": 62,
+      "y": 30,
+      "color": "#a78bfa",
+      "size": 4.5,
+      "description": "Fastest bear market in history followed by unprecedented fiscal and monetary response.",
+      "drivers": ["Pandemic", "Supply shock", "Fiscal stimulus"],
+      "assets": "Equities -34% then V-recovery, Rates to zero, Gold +30%",
+      "feature_vector": {"inflation": -0.6, "growth": -1.0, "policy": 1.0, "volatility": 1.0, "liquidity": -0.8, "contagion": 0.9, "commodity": -0.6, "fx": 0.3, "rates": -0.8, "technology": 0.4, "geopolitics": 0.5}
+    },
+    {
+      "id": "inflation",
+      "year": 2022,
+      "label": "Inflation Surge",
+      "x": 76,
+      "y": 55,
+      "color": "#f472b6",
+      "size": 3.5,
+      "description": "Post-pandemic inflation forced aggressive tightening and broad asset repricing.",
+      "drivers": ["Supply-demand imbalance", "Energy crisis", "Rate hikes"],
+      "assets": "Bonds -20%, Growth stocks -30%, Commodities +30%, USD +15%",
+      "feature_vector": {"inflation": 1.0, "growth": -0.2, "policy": 0.9, "volatility": 0.6, "liquidity": -0.5, "contagion": 0.5, "commodity": 0.8, "fx": 0.7, "rates": 1.0, "technology": -0.2, "geopolitics": 0.5}
+    },
+    {
+      "id": "ai",
+      "year": 2024,
+      "label": "AI Boom",
+      "x": 90,
+      "y": 42,
+      "color": "#34d399",
+      "size": 3,
+      "description": "Generative AI drove concentrated capex and equity leadership under still restrictive policy.",
+      "drivers": ["AI capex", "Tech concentration", "Productivity hope"],
+      "assets": "Magnificent 7 +80%, Semis rally, Power demand surge",
+      "feature_vector": {"inflation": 0.2, "growth": 0.8, "policy": 0.5, "volatility": 0.2, "liquidity": 0.2, "contagion": 0.3, "commodity": 0.2, "fx": 0.1, "rates": 0.3, "technology": 1.0, "geopolitics": 0.2}
+    }
+  ],
+  "connections": [
+    {"from": "gfc", "to": "euro"},
+    {"from": "euro", "to": "taper"},
+    {"from": "taper", "to": "china2015"},
+    {"from": "china2015", "to": "covid"},
+    {"from": "covid", "to": "inflation"},
+    {"from": "inflation", "to": "ai"}
+  ]
+}

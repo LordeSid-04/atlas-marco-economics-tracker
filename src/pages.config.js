@@ -47,18 +47,18 @@
  *
  * The mainPage value must match a key in the PAGES object exactly.
  */
-import WorldPulse from './pages/WorldPulse';
-import ScenarioLab from './pages/ScenarioLab';
-import HistoricalAtlas from './pages/HistoricalAtlas';
-import RiskRadar from './pages/RiskRadar';
+import { lazy } from 'react';
 import __Layout from './Layout.jsx';
+
+const WorldPulse = lazy(() => import('./pages/WorldPulse'));
+const ScenarioLab = lazy(() => import('./pages/ScenarioLab'));
+const HistoricalAtlas = lazy(() => import('./pages/HistoricalAtlas'));
 
 
 export const PAGES = {
     "WorldPulse": WorldPulse,
     "ScenarioLab": ScenarioLab,
     "HistoricalAtlas": HistoricalAtlas,
-    "RiskRadar": RiskRadar,
 }
 
 export const pagesConfig = {

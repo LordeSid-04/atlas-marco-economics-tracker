@@ -1,14 +1,13 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import { Globe, FlaskConical, Landmark, ShieldAlert, Menu, X } from "lucide-react";
+import { Globe, FlaskConical, Landmark, Menu, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const NAV_ITEMS = [
-  { name: "World Pulse", page: "WorldPulse", icon: Globe },
+  { name: "Signal Desk", page: "WorldPulse", icon: Globe },
   { name: "Scenario Lab", page: "ScenarioLab", icon: FlaskConical },
-  { name: "Historical Atlas", page: "HistoricalAtlas", icon: Landmark },
-  { name: "Risk Radar", page: "RiskRadar", icon: ShieldAlert },
+  { name: "Memory Vault", page: "HistoricalAtlas", icon: Landmark },
 ];
 
 export default function Layout({ children, currentPageName }) {

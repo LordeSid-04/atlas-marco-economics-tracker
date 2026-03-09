@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDownRight, ArrowUpRight, Minus, Radio, RefreshCw } from "lucide-react";
+import { buildBackendUrl } from "@/api/atlasClient";
 
-const REFRESH_MS = 15000;
+const REFRESH_MS = 1000;
 
 const SECTIONS = [
   {
@@ -64,6 +65,12 @@ function WatchRow({ item, quote }) {
   const changePct = close !== null && open ? ((close - open) / open) * 100 : null;
   const isUp = changePct !== null ? changePct > 0.02 : false;
   const isDown = changePct !== null ? changePct < -0.02 : false;
+  const provenance = quote?.provenance || null;
+  const sourceLine = provenance
+    ? `${provenance.provider}${provenance.providerSymbol ? `:${provenance.providerSymbol}` : ""} | ${provenance.mode}${
+        Number.isFinite(provenance.ageSeconds) ? ` | ${provenance.ageSeconds}s` : ""
+      }`
+    : "source pending";
 
   return (
     <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
@@ -89,22 +96,30 @@ function WatchRow({ item, quote }) {
           )}
           {changePct === null ? "--" : `${changePct > 0 ? "+" : ""}${changePct.toFixed(2)}%`}
         </div>
-        <div className="text-[10px] text-slate-500">{quote?.time ? `${quote.time} UTC` : "Loading..."}</div>
+        <div className="text-right">
+          <div className="text-[10px] text-slate-500">{quote?.time ? `${quote.time} UTC` : "Loading..."}</div>
+          <div className="text-[9px] text-slate-600">{sourceLine}</div>
+        </div>
       </div>
     </div>
   );
 }
 
 export default function MacroWatchlist() {
-  const allItems = useMemo(() => SECTIONS.flatMap((s) => s.items), []);
+  const allItems = useMemo(() => SECTIONS.flatMap((section) => section.items), []);
   const [quotes, setQuotes] = useState({});
-  const [lastUpdated, setLastUpdated] = useState(null); // when values changed
-  const [lastChecked, setLastChecked] = useState(null); // when poll completed
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const [lastChecked, setLastChecked] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [nowTs, setNowTs] = useState(Date.now());
   const snapshotRef = useRef("");
   const fetchingRef = useRef(false);
+  const quotesRef = useRef({});
   const totalCount = allItems.length;
+
+  useEffect(() => {
+    quotesRef.current = quotes;
+  }, [quotes]);
 
   const lastUpdatedRelative = useMemo(() => {
     if (!lastUpdated) return "--";
@@ -159,26 +174,43 @@ export default function MacroWatchlist() {
     fetchingRef.current = true;
     setIsRefreshing(true);
 
-    const next = {};
-    await Promise.all(
-      allItems.map(async (item) => {
-        try {
-          const res = await fetch(`/api/stooq?symbol=${encodeURIComponent(item.symbol)}`);
-          if (!res.ok) {
+    const next = { ...quotesRef.current };
+    let pollSucceeded = false;
+
+    try {
+      const symbols = allItems.map((item) => item.symbol).join(",");
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      const res = await fetch(buildBackendUrl(`/api/stooq/batch?symbols=${encodeURIComponent(symbols)}`), {
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timeout));
+      if (res.ok) {
+        pollSucceeded = true;
+        const payload = await res.json();
+        const bySymbol = Object.fromEntries((payload.items || []).map((item) => [item.symbol, item.quote]));
+
+        allItems.forEach((item) => {
+          const data = bySymbol[item.symbol] || null;
+          if (data) {
+            next[item.key] = {
+              close: toNumber(data.close),
+              open: toNumber(data.open),
+              time: data.time || "",
+              provenance: {
+                provider: data.provenance?.provider || "unknown",
+                providerSymbol: data.provenance?.provider_symbol || "",
+                mode: data.provenance?.mode || "unknown",
+                ageSeconds: Number(data.provenance?.age_seconds),
+              },
+            };
+          } else if (!Object.prototype.hasOwnProperty.call(next, item.key)) {
             next[item.key] = null;
-            return;
           }
-          const data = await res.json();
-          next[item.key] = {
-            close: toNumber(data.close),
-            open: toNumber(data.open),
-            time: data.time || "",
-          };
-        } catch {
-          next[item.key] = null;
-        }
-      })
-    );
+        });
+      }
+    } catch {
+      // Keep last known values when polling fails.
+    }
 
     const snapshot = allItems
       .map((item) => {
@@ -188,7 +220,10 @@ export default function MacroWatchlist() {
       .join("|");
 
     setQuotes(next);
-    setLastChecked(new Date());
+
+    if (pollSucceeded) {
+      setLastChecked(new Date());
+    }
 
     if (snapshot !== snapshotRef.current) {
       snapshotRef.current = snapshot;
@@ -221,9 +256,9 @@ export default function MacroWatchlist() {
   }, []);
 
   return (
-    <aside className="atlas-glass-strong rounded-2xl border border-cyan-500/15 p-4 h-full overflow-auto">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-semibold text-white tracking-wide">Macro Watchlist</h2>
+    <aside className="atlas-glass-strong rounded-2xl border border-cyan-500/15 p-4 h-full min-h-0 overflow-y-auto overflow-x-hidden">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-sm font-semibold tracking-wide text-white">Macro Watchlist</h2>
         <div className="flex items-center gap-2">
           <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] ${health.className}`}>
             <Radio className="h-3 w-3" />
@@ -233,7 +268,7 @@ export default function MacroWatchlist() {
             type="button"
             onClick={loadQuotes}
             disabled={isRefreshing}
-            className="inline-flex items-center justify-center rounded-full border border-cyan-500/25 bg-cyan-500/10 p-1.5 text-cyan-300 hover:bg-cyan-500/20 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex items-center justify-center rounded-full border border-cyan-500/25 bg-cyan-500/10 p-1.5 text-cyan-300 transition-colors hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-60"
             title="Refresh now"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
@@ -247,7 +282,7 @@ export default function MacroWatchlist() {
       <div className="space-y-4">
         {SECTIONS.map((section) => (
           <section key={section.title}>
-            <h3 className="text-[11px] uppercase tracking-[0.14em] text-slate-500 mb-2">{section.title}</h3>
+            <h3 className="mb-2 text-[11px] uppercase tracking-[0.14em] text-slate-500">{section.title}</h3>
             <div className="space-y-2">
               {section.items.map((item) => (
                 <WatchRow key={item.key} item={item} quote={quotes[item.key]} />
@@ -258,8 +293,10 @@ export default function MacroWatchlist() {
       </div>
 
       <div className="mt-4 border-t border-white/[0.06] pt-3 text-[10px] text-slate-500">
-        Source: Stooq market feed. Refresh: {Math.round(REFRESH_MS / 1000)}s. Last data change: {lastUpdatedRelative}
+        Source: Atlas market feed (multi-provider). Refresh: {Math.round(REFRESH_MS / 1000)}s. Last data change: {lastUpdatedRelative}
       </div>
     </aside>
   );
 }
+
+

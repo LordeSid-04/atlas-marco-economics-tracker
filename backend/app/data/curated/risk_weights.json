@@ -1,0 +1,31 @@
+{
+  "category_weights": {
+    "inflation": {"label": "Inflation Risk", "color": "#f97316", "angle": 0, "weights": {"inflation": 0.9, "commodity": 0.35, "policy": 0.25}},
+    "growth": {"label": "Growth Risk", "color": "#22d3ee", "angle": 60, "weights": {"growth": -0.8, "technology": -0.3, "liquidity": 0.2}},
+    "policy": {"label": "Policy Risk", "color": "#a78bfa", "angle": 120, "weights": {"policy": 0.95, "rates": 0.55, "fx": 0.3}},
+    "volatility": {"label": "Volatility Risk", "color": "#fbbf24", "angle": 180, "weights": {"volatility": 0.9, "contagion": 0.45, "liquidity": -0.3}},
+    "liquidity": {"label": "Liquidity Stress", "color": "#34d399", "angle": 240, "weights": {"liquidity": -0.95, "rates": 0.3, "contagion": 0.2}},
+    "contagion": {"label": "Contagion", "color": "#f472b6", "angle": 300, "weights": {"contagion": 0.95, "fx": 0.5, "geopolitics": 0.4}}
+  },
+  "overall_weights": {
+    "inflation": 0.18,
+    "growth": 0.16,
+    "policy": 0.2,
+    "volatility": 0.16,
+    "liquidity": 0.14,
+    "contagion": 0.16
+  },
+  "analogue_feature_weights": {
+    "inflation": 1.0,
+    "growth": 1.0,
+    "policy": 0.9,
+    "volatility": 0.9,
+    "liquidity": 0.7,
+    "contagion": 0.9,
+    "commodity": 0.7,
+    "fx": 0.8,
+    "rates": 0.8,
+    "technology": 0.6,
+    "geopolitics": 0.7
+  }
+}
