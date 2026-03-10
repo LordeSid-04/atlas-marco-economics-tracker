@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { BrainCircuit, ChevronLeft, ChevronRight, FileUp, Loader2, Send, Sparkles } from "lucide-react";
+import { BrainCircuit, ChevronLeft, ChevronRight, FileUp, Loader2, Send } from "lucide-react";
 import { fetchNewsHeadlines, runNewsNavigator } from "@/api/atlasClient";
 import KeywordHighlighter from "@/components/worldpulse/KeywordHighlighter";
 
@@ -9,6 +9,7 @@ const HORIZON_OPTIONS = [
   { id: "monthly", label: "Month" },
   { id: "yearly", label: "Year" },
 ];
+const HEADLINE_LIMIT_OPTIONS = [50, 100, 150, 200];
 
 const CONTENT_TYPE_OPTIONS = [
   { id: "macroeconomic_releases", label: "Macro Releases" },
@@ -138,6 +139,7 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
   const [prompt, setPrompt] = useState("");
   const [files, setFiles] = useState([]);
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
+  const [headlinesLimit, setHeadlinesLimit] = useState(50);
   const [isRunning, setIsRunning] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
@@ -152,6 +154,7 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
   const [refreshTick, setRefreshTick] = useState(0);
 
   const autoRunSignatureRef = useRef("");
+  const headlinesRef = useRef([]);
 
   const handleFileChange = (event) => {
     const selected = Array.from(event.target.files || []).slice(0, 4);
@@ -226,9 +229,13 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
   };
 
   useEffect(() => {
+    headlinesRef.current = headlines;
+  }, [headlines]);
+
+  useEffect(() => {
     const interval = setInterval(() => {
       setRefreshTick((prev) => prev + 1);
-    }, 15000);
+    }, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -246,7 +253,7 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
             contentTypes: filters.contentTypes,
             sourceTypes: filters.sourceTypes,
             search: filters.search,
-            limit: 50,
+            limit: headlinesLimit,
           },
           { signal: controller.signal },
         );
@@ -257,9 +264,12 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
         if (loadError?.name === "AbortError" || String(loadError?.message || "").toLowerCase().includes("aborted")) {
           return;
         }
-        setHeadlines([]);
-        setHeadlineTotal(0);
-        setHeadlinesError(loadError?.message || "Failed to load live headlines.");
+        if ((headlinesRef.current || []).length) {
+          setHeadlinesError("Live refresh delayed. Showing last synced headlines.");
+        } else {
+          setHeadlinesError(loadError?.message || "Failed to load live headlines.");
+          setHeadlineTotal(0);
+        }
       } finally {
         setHeadlinesLoading(false);
       }
@@ -269,7 +279,7 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
       controller.abort();
       clearTimeout(debounce);
     };
-  }, [filterSignature, horizon, refreshTick]);
+  }, [filterSignature, headlinesLimit, horizon, refreshTick]);
 
   useEffect(() => {
     if (!headlines.length) {
@@ -316,6 +326,7 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
       const manualPrompt = prompt.trim();
       const selectedTitle = selectedHeadline?.title || "";
       const effectivePrompt = manualPrompt || headlinePrompt(selectedTitle, horizon);
+      const querySeed = filters.search.trim() || manualPrompt || selectedTitle;
 
       if (!effectivePrompt.trim()) {
         setError("Select a headline or enter a prompt to run News Navigator.");
@@ -335,7 +346,7 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
             region: filters.region,
             content_types: filters.contentTypes,
             source_types: filters.sourceTypes,
-            query: filters.search || selectedTitle,
+            query: querySeed.slice(0, 320),
           },
         });
         setResult(payload);
@@ -401,14 +412,7 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/[0.06] px-3 py-1 text-[10px] uppercase tracking-[0.12em] text-zinc-300">
-            <Sparkles className="h-3.5 w-3.5" />
-            News Navigator + Critical Developments
-          </div>
-          <h3 className="mt-2 text-lg font-semibold text-zinc-100">News Navigator</h3>
-          <p className="mt-1 text-xs text-zinc-400">
-            Prompt the engine directly or select one of the top 50 trending global headlines.
-          </p>
+          <h3 className="text-lg font-semibold text-zinc-100">News Navigator</h3>
         </div>
 
         <div className="flex items-center gap-2">
@@ -436,23 +440,37 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
             <textarea
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
-              placeholder="Prompt with whatever you want. Example: Explain this headline's impact on local rates, FX, and global risk assets."
+              placeholder="Example: Explain this headline's impact on local rates, FX, and global risk assets."
               className="atlas-focus-ring mt-1.5 min-h-[108px] w-full resize-y rounded-xl border border-white/15 bg-black/35 p-3 text-sm leading-relaxed text-zinc-100 placeholder:text-zinc-500"
             />
             <div className="mt-2 text-[11px] text-zinc-400">
-              Prompt freely, or select a trending headline below and we will analyze it automatically.
+              Write a custom prompt or select a live headline below. Analysis updates automatically.
             </div>
           </div>
 
           <div className="rounded-xl border border-white/12 bg-black/30 p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <div className="text-[10px] uppercase tracking-[0.11em] text-zinc-500">Top 50 Global Headlines</div>
+                <div className="text-[10px] uppercase tracking-[0.11em] text-zinc-500">Global Headlines</div>
                 <div className="text-[11px] text-zinc-500">
                   {headlineTotal} matches
                   {hasActiveFilters ? " | filtered" : ""}
                   {lastHeadlinesRefreshAt ? ` | Updated ${formatPublishedAt(lastHeadlinesRefreshAt.toISOString())}` : ""}
                 </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-[10px] uppercase tracking-[0.1em] text-zinc-500">Show</label>
+                <select
+                  value={String(headlinesLimit)}
+                  onChange={(event) => setHeadlinesLimit(Number(event.target.value) || 50)}
+                  className="atlas-focus-ring rounded-lg border border-white/18 bg-black/45 px-2.5 py-1.5 text-[11px] text-zinc-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+                >
+                  {HEADLINE_LIMIT_OPTIONS.map((value) => (
+                    <option key={`headline-limit-${value}`} value={String(value)}>
+                      Top {value}
+                    </option>
+                  ))}
+                </select>
               </div>
               {headlinesLoading ? (
                 <span className="inline-flex items-center gap-1 text-[11px] text-zinc-400">
@@ -460,7 +478,7 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
                   Refreshing
                 </span>
               ) : (
-                <span className="text-[10px] uppercase tracking-[0.1em] text-zinc-500">Auto refresh 15s</span>
+                <span className="text-[10px] uppercase tracking-[0.1em] text-zinc-500">Auto refresh 30s</span>
               )}
             </div>
 
@@ -559,7 +577,7 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
               <select
                 value={selectedHeadline?.article_id || ""}
                 onChange={(event) => setSelectedHeadlineId(event.target.value)}
-                className="atlas-focus-ring min-w-[260px] flex-1 rounded-lg border border-white/15 bg-black/35 px-2.5 py-2 text-xs text-zinc-200"
+                className="atlas-focus-ring min-w-[260px] flex-1 rounded-lg border border-white/18 bg-black/45 px-2.5 py-2 text-xs text-zinc-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
               >
                 {!headlines.length ? <option value="">No headlines matched current filters</option> : null}
                 {headlines.map((item, index) => (
@@ -579,6 +597,18 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
                 <ChevronRight className="h-4 w-4" />
               </button>
             </div>
+
+            {headlineTotal > headlines.length && headlinesLimit < 200 ? (
+              <div className="mt-2">
+                <button
+                  type="button"
+                  onClick={() => setHeadlinesLimit((prev) => Math.min(200, prev + 50))}
+                  className="atlas-focus-ring rounded-lg border border-white/20 bg-white/[0.03] px-2.5 py-1.5 text-[10px] uppercase tracking-[0.1em] text-zinc-300 transition hover:border-white/35 hover:text-zinc-100"
+                >
+                  Load More Headlines
+                </button>
+              </div>
+            ) : null}
 
             {headlinesError ? <div className="mt-2 text-[11px] text-rose-300">{headlinesError}</div> : null}
 
@@ -634,7 +664,7 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
             className="atlas-focus-ring inline-flex w-full items-center justify-center gap-2 rounded-lg border border-white/28 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.11em] text-zinc-950 transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            {isRunning ? "Analyzing..." : "Run Navigator"}
+            {isRunning ? "Analyzing..." : "Run Analysis"}
           </button>
 
           <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5 text-[11px] leading-relaxed text-zinc-300">

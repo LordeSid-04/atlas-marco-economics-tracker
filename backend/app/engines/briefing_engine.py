@@ -72,6 +72,8 @@ class BriefingEngine:
         self.analogue_engine = analogue_engine
         self.settings = get_settings()
         self.signal_model = SignalModelEngine()
+        self._navigator_source_pool_cache: dict[tuple[int, int], dict[str, Any]] = {}
+        self._headlines_cache: dict[str, dict[str, Any]] = {}
 
         self._scenario_presets: dict[str, dict[str, Any]] = {
             "inflation-shock": {
@@ -161,20 +163,37 @@ class BriefingEngine:
 
         developments: list[MacroDevelopment] = []
         aggregated_sources: list[SourceProof] = []
-        for theme in theme_live.themes[:snapshot_limit]:
+        active_themes = list(theme_live.themes[:snapshot_limit])
+        semaphore = asyncio.Semaphore(4)
+
+        async def _load_theme_context(theme: Any) -> tuple[Any, Any | None, Any | None]:
+            try:
+                async with semaphore:
+                    timeline_task = asyncio.create_task(
+                        self.theme_engine.get_theme_timeline(
+                            theme_id=theme.theme_id,
+                            window_hours=min(240, bounded_window * 2),
+                            max_points=60,
+                        )
+                    )
+                    sources_task = asyncio.create_task(
+                        self.theme_engine.get_theme_sources(
+                            theme_id=theme.theme_id,
+                            window_hours=bounded_window,
+                            limit=8,
+                        )
+                    )
+                    timeline, sources = await asyncio.gather(timeline_task, sources_task)
+                return theme, timeline, sources
+            except Exception:
+                return theme, None, None
+
+        theme_context_rows = await asyncio.gather(*[_load_theme_context(theme) for theme in active_themes])
+
+        for theme, timeline, sources in theme_context_rows:
             scored = scored_map.get(theme.theme_id)
-            if scored is None:
+            if scored is None or timeline is None or sources is None:
                 continue
-            timeline = await self.theme_engine.get_theme_timeline(
-                theme_id=theme.theme_id,
-                window_hours=min(240, bounded_window * 2),
-                max_points=60,
-            )
-            sources = await self.theme_engine.get_theme_sources(
-                theme_id=theme.theme_id,
-                window_hours=bounded_window,
-                limit=8,
-            )
             outlook = scored.outlook_state
             importance = scored.importance_value
             temperature_value = scored.temperature_value
@@ -437,9 +456,22 @@ class BriefingEngine:
             return cached_feed_status
 
         live = await self.theme_engine.get_live_themes(window_hours=max(24, min(720, window_hours)), limit=8)
+        themes = list(live.themes[:6])
+
+        async def _load_sources(theme: Any) -> list[Any]:
+            try:
+                payload = await self.theme_engine.get_theme_sources(
+                    theme_id=theme.theme_id,
+                    window_hours=window_hours,
+                    limit=4,
+                )
+                return list(payload.articles)
+            except Exception:
+                return []
+
+        source_batches = await asyncio.gather(*[_load_sources(theme) for theme in themes])
         proofs: list[SourceProof] = []
-        for theme in live.themes[:6]:
-            sources = await self.theme_engine.get_theme_sources(theme_id=theme.theme_id, window_hours=window_hours, limit=4)
+        for batch in source_batches:
             proofs.extend(
                 [
                     SourceProof(
@@ -451,7 +483,7 @@ class BriefingEngine:
                         snippet=article.excerpt,
                         relevance_score=article.relevance_score,
                     )
-                    for article in sources.articles
+                    for article in batch
                 ]
             )
         return self._build_feed_status(proofs, window_hours=window_hours)
@@ -508,25 +540,50 @@ class BriefingEngine:
         bounded_window = int(clamp(window_hours, 24, 2160))
         bounded_limit = int(clamp(limit, 5, 80))
 
-        timeline = await self.theme_engine.get_theme_timeline(
-            theme_id=theme_id,
-            window_hours=bounded_window,
-            max_points=min(250, bounded_limit * 4),
+        timeline_task = asyncio.create_task(
+            self.theme_engine.get_theme_timeline(
+                theme_id=theme_id,
+                window_hours=bounded_window,
+                max_points=min(250, bounded_limit * 4),
+            )
         )
-        sources = await self.theme_engine.get_theme_sources(
-            theme_id=theme_id,
-            window_hours=min(720, bounded_window),
-            limit=bounded_limit,
+        sources_task = asyncio.create_task(
+            self.theme_engine.get_theme_sources(
+                theme_id=theme_id,
+                window_hours=min(720, bounded_window),
+                limit=bounded_limit,
+            )
         )
-        analogues = await self.analogue_engine.get_analogues(k=6)
+        analogues_task = asyncio.create_task(self.analogue_engine.get_analogues(k=6))
+        live_task = asyncio.create_task(
+            self.theme_engine.get_live_themes(window_hours=min(168, bounded_window), limit=12)
+        )
+
+        timeline, sources, analogues, latest_live = await asyncio.gather(
+            timeline_task,
+            sources_task,
+            analogues_task,
+            live_task,
+        )
 
         history_rows = self.repository.get_daily_brief_history(limit=40)
         snapshots = self._extract_discussion_history(history_rows, theme_id=theme_id, limit=bounded_limit)
         snapshots.extend(self._public_memory_snapshots(theme_id=theme_id, limit=bounded_limit))
+        live_item = next((item for item in latest_live.themes if item.theme_id == timeline.theme_id), None)
+        if len(snapshots) < max(3, min(8, bounded_limit)):
+            synthesized = self._synthesize_theme_memory_snapshots(
+                theme_id=timeline.theme_id,
+                label=timeline.label,
+                timeline_points=timeline.points,
+                source_articles=sources.articles,
+                live_item=live_item,
+                limit=bounded_limit,
+            )
+            snapshots.extend(synthesized)
+
         snapshots.sort(key=lambda item: item.as_of, reverse=True)
         snapshots = snapshots[:bounded_limit]
 
-        latest_live = await self.theme_engine.get_live_themes(window_hours=min(168, bounded_window), limit=10)
         confidence = latest_live.confidence
         explanation = make_trace(
             summary=(
@@ -563,6 +620,7 @@ class BriefingEngine:
         live, source_pool = await self._collect_navigator_source_pool_with_backfill(
             window_hours=window_hours,
             limit_per_theme=14,
+            min_pool_size=48,
         )
         filtered_pool = self._apply_news_filters(rows=source_pool, filters=filters)
         prompt_terms = _extract_keywords(prompt)
@@ -587,11 +645,19 @@ class BriefingEngine:
         if self._has_active_news_filters(filters):
             active_pool = filtered_pool
         else:
-            active_pool = filtered_pool if filtered_pool else source_pool[:24]
+            active_pool = filtered_pool if filtered_pool else source_pool[:64]
+        prompt_aligned_pool = self._filter_rows_by_prompt_terms(rows=active_pool, prompt_terms=prompt_terms)
+        if prompt_aligned_pool:
+            active_pool = prompt_aligned_pool
         for row in active_pool:
             article = row["article"]
             source_text = str(row.get("text", f"{article.title} {article.excerpt}")).lower()
             keyword_overlap = sum(1 for term in prompt_terms if term in source_text)
+            theme_overlap = sum(
+                1
+                for term in prompt_terms
+                if term in str(row.get("theme_label", "")).lower() or term in str(row.get("theme_id", "")).lower()
+            )
             recency_score = self._recency_score(
                 published_at=article.published_at,
                 window_hours=window_hours,
@@ -599,7 +665,7 @@ class BriefingEngine:
             score = float(
                 clamp(
                     float(article.relevance_score) * 0.54
-                    + min(1.0, keyword_overlap / 6.0) * 0.34
+                    + min(1.0, (keyword_overlap + theme_overlap) / 6.0) * 0.34
                     + recency_score * 0.12,
                     0.0,
                     1.0,
@@ -609,13 +675,18 @@ class BriefingEngine:
                 {
                     **row,
                     "keyword_overlap": keyword_overlap,
+                    "theme_overlap": theme_overlap,
                     "recency_score": recency_score,
                     "score": score,
                 }
             )
 
         scored_sources.sort(
-            key=lambda item: (item["score"], item["keyword_overlap"], item["article"].published_at),
+            key=lambda item: (
+                item["score"],
+                item["keyword_overlap"] + item["theme_overlap"],
+                item["article"].published_at,
+            ),
             reverse=True,
         )
         selected_sources = scored_sources[:8]
@@ -882,7 +953,7 @@ class BriefingEngine:
     ) -> NewsHeadlinesResponse:
         normalized_horizon = self._normalize_horizon(horizon)
         window_hours = {"daily": 24, "weekly": 168, "monthly": 720, "yearly": 8760}[normalized_horizon]
-        bounded_limit = int(clamp(limit, 6, 80))
+        bounded_limit = int(clamp(limit, 6, 200))
         filters = self._sanitize_navigator_filters(
             NewsNavigatorFilters(
                 country=country,
@@ -892,9 +963,30 @@ class BriefingEngine:
                 query=search,
             )
         )
+        cache_key = "|".join(
+            [
+                normalized_horizon,
+                str(bounded_limit),
+                filters.country.strip().lower(),
+                filters.region.strip().lower(),
+                ",".join(filters.content_types),
+                ",".join(filters.source_types),
+                filters.query.strip().lower(),
+            ]
+        )
+        cache_entry = self._headlines_cache.get(cache_key)
+        now = datetime.now(tz=timezone.utc)
+        if cache_entry:
+            cached_at = _parse_datetime(cache_entry.get("as_of"))
+            cached_response = cache_entry.get("response")
+            if isinstance(cached_response, NewsHeadlinesResponse) and cached_at is not None:
+                if (now - cached_at).total_seconds() <= 28:
+                    return cached_response
+
         _, source_pool = await self._collect_navigator_source_pool_with_backfill(
             window_hours=window_hours,
             limit_per_theme=max(12, bounded_limit),
+            min_pool_size=max(60, bounded_limit),
         )
         filtered_rows = self._apply_news_filters(rows=source_pool, filters=filters)
 
@@ -949,7 +1041,7 @@ class BriefingEngine:
                 for row in selected[:6]
             ],
         )
-        return NewsHeadlinesResponse(
+        response = NewsHeadlinesResponse(
             as_of=datetime.now(tz=timezone.utc),
             horizon=normalized_horizon,
             filters=filters,
@@ -957,6 +1049,8 @@ class BriefingEngine:
             headlines=headlines,
             explanation=explanation,
         )
+        self._headlines_cache[cache_key] = {"as_of": now.isoformat(), "response": response}
+        return response
 
     async def _collect_navigator_source_pool(
         self,
@@ -964,18 +1058,21 @@ class BriefingEngine:
         window_hours: int,
         limit_per_theme: int,
     ) -> tuple[Any, list[dict[str, Any]]]:
-        live = await self.theme_engine.get_live_themes(window_hours=window_hours, limit=10)
-        candidate_themes = list(live.themes[:8])
+        live = await self.theme_engine.get_live_themes(window_hours=window_hours, limit=24)
+        candidate_themes = list(live.themes[:18])
         if not candidate_themes and live.themes:
             candidate_themes = [live.themes[0]]
 
+        semaphore = asyncio.Semaphore(6)
+
         async def _load_theme_sources(theme: Any) -> tuple[Any, Any]:
             try:
-                payload = await self.theme_engine.get_theme_sources(
-                    theme_id=theme.theme_id,
-                    window_hours=window_hours,
-                    limit=int(clamp(limit_per_theme, 8, 40)),
-                )
+                async with semaphore:
+                    payload = await self.theme_engine.get_theme_sources(
+                        theme_id=theme.theme_id,
+                        window_hours=window_hours,
+                        limit=int(clamp(limit_per_theme, 8, 100)),
+                    )
                 return theme, payload
             except Exception:
                 return theme, None
@@ -1017,13 +1114,32 @@ class BriefingEngine:
         *,
         window_hours: int,
         limit_per_theme: int,
+        min_pool_size: int = 1,
     ) -> tuple[Any, list[dict[str, Any]]]:
+        required_pool_size = max(1, int(min_pool_size))
+        cache_key = (int(window_hours), int(clamp(limit_per_theme, 8, 200)))
+        cache_entry = self._navigator_source_pool_cache.get(cache_key)
+        now = datetime.now(tz=timezone.utc)
+        if cache_entry:
+            cached_at = _parse_datetime(cache_entry.get("as_of"))
+            cached_live = cache_entry.get("live")
+            cached_pool = cache_entry.get("pool")
+            if cached_at is not None and cached_live is not None and isinstance(cached_pool, list):
+                if (now - cached_at).total_seconds() <= 24 and len(cached_pool) >= required_pool_size:
+                    return cached_live, list(cached_pool)
+
         live, source_pool = await self._collect_navigator_source_pool(
             window_hours=window_hours,
             limit_per_theme=limit_per_theme,
         )
-        if source_pool:
-            return live, source_pool
+        merged_pool = self._dedupe_navigator_rows(source_pool)
+        if len(merged_pool) >= required_pool_size:
+            self._navigator_source_pool_cache[cache_key] = {
+                "as_of": now.isoformat(),
+                "live": live,
+                "pool": list(merged_pool),
+            }
+            return live, merged_pool
 
         for fallback_window in (168, 720, 8760):
             if fallback_window <= int(window_hours):
@@ -1033,8 +1149,68 @@ class BriefingEngine:
                 limit_per_theme=limit_per_theme,
             )
             if fallback_pool:
-                return fallback_live, fallback_pool
-        return live, source_pool
+                merged_pool.extend(fallback_pool)
+                merged_pool = self._dedupe_navigator_rows(merged_pool)
+                if len(merged_pool) >= required_pool_size:
+                    self._navigator_source_pool_cache[cache_key] = {
+                        "as_of": now.isoformat(),
+                        "live": fallback_live,
+                        "pool": list(merged_pool),
+                    }
+                    return fallback_live, merged_pool
+        self._navigator_source_pool_cache[cache_key] = {
+            "as_of": now.isoformat(),
+            "live": live,
+            "pool": list(merged_pool),
+        }
+        return live, merged_pool
+
+    def _dedupe_navigator_rows(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        deduped: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            article = row.get("article")
+            source_key = ""
+            if article is not None:
+                source_key = str(getattr(article, "article_id", "") or getattr(article, "url", "")).strip()
+            if not source_key:
+                source_key = str(row.get("source_key", "")).strip()
+            if not source_key:
+                continue
+
+            existing = deduped.get(source_key)
+            if existing is None:
+                deduped[source_key] = row
+                continue
+
+            existing_score = float(getattr(existing.get("article"), "relevance_score", 0.0) or 0.0)
+            incoming_score = float(getattr(article, "relevance_score", 0.0) or 0.0)
+            if incoming_score > existing_score:
+                deduped[source_key] = row
+
+        ordered = list(deduped.values())
+        ordered.sort(
+            key=lambda item: (item["article"].published_at, float(item["article"].relevance_score)),
+            reverse=True,
+        )
+        return ordered
+
+    def _filter_rows_by_prompt_terms(
+        self,
+        *,
+        rows: list[dict[str, Any]],
+        prompt_terms: list[str],
+    ) -> list[dict[str, Any]]:
+        terms = [term.strip().lower() for term in prompt_terms if len(term.strip()) >= 4][:16]
+        if not terms:
+            return rows
+
+        selected: list[dict[str, Any]] = []
+        for row in rows:
+            text = str(row.get("text", "")).lower()
+            theme_text = f"{row.get('theme_label', '')} {row.get('theme_id', '')}".lower()
+            if any(term in text or term in theme_text for term in terms):
+                selected.append(row)
+        return selected
 
     def _sanitize_navigator_filters(self, filters: NewsNavigatorFilters | None) -> NewsNavigatorFilters:
         value = filters or NewsNavigatorFilters()
@@ -1110,8 +1286,11 @@ class BriefingEngine:
                 row_source_type = self._normalize_source_type(str(row.get("source_type", "")))
                 if row_source_type not in required_source_types:
                     continue
-            if search_terms and not all(term in text for term in search_terms):
-                continue
+            if search_terms:
+                hits = sum(1 for term in search_terms if term in text)
+                required_hits = 1 if len(search_terms) <= 3 else 2
+                if hits < required_hits:
+                    continue
 
             selected.append(row)
         return selected
@@ -1811,6 +1990,117 @@ class BriefingEngine:
                 )
             )
         return snapshots
+
+    def _synthesize_theme_memory_snapshots(
+        self,
+        *,
+        theme_id: str,
+        label: str,
+        timeline_points: list[Any],
+        source_articles: list[Any],
+        live_item: Any | None,
+        limit: int,
+    ) -> list[ThemeDiscussionSnapshot]:
+        bounded_limit = max(1, min(24, int(limit)))
+        if not timeline_points and live_item is None:
+            return []
+
+        unique_sources = sorted({str(getattr(article, "source", "")).strip() for article in source_articles if article})
+        source_diversity = max(1, len([item for item in unique_sources if item]))
+        region_set = {
+            str(tag).strip().lower()
+            for article in source_articles
+            for tag in getattr(article, "region_tags", [])
+            if str(tag).strip()
+        }
+        cross_region_spread = max(1, len(region_set))
+        market_reaction = int(
+            clamp(
+                float(getattr(live_item, "market_reaction_score", 55) or 55),
+                20.0,
+                95.0,
+            )
+        )
+        label_text = str(getattr(live_item, "label", "") or label or theme_id).strip() or theme_id
+
+        ordered_points = sorted(
+            list(timeline_points),
+            key=lambda row: _parse_datetime(getattr(row, "as_of", None)) or datetime.now(tz=timezone.utc),
+        )
+        if not ordered_points and live_item is not None:
+            ordered_points = [
+                type(
+                    "SnapshotPoint",
+                    (),
+                    {
+                        "as_of": datetime.now(tz=timezone.utc),
+                        "temperature": int(getattr(live_item, "temperature", 50) or 50),
+                        "mention_count": int(getattr(live_item, "mention_count", 8) or 8),
+                        "state": str(getattr(live_item, "state", "neutral") or "neutral"),
+                        "momentum": float(getattr(live_item, "momentum", 0.0) or 0.0),
+                    },
+                )()
+            ]
+
+        if not ordered_points:
+            return []
+
+        sample_target = max(3, min(bounded_limit, 8))
+        stride = max(1, len(ordered_points) // sample_target)
+        sampled_indices = set(range(0, len(ordered_points), stride))
+        sampled_indices.add(len(ordered_points) - 1)
+
+        snapshots: list[ThemeDiscussionSnapshot] = []
+        for index in sorted(sampled_indices):
+            point = ordered_points[index]
+            as_of = _parse_datetime(getattr(point, "as_of", None)) or datetime.now(tz=timezone.utc)
+            temperature = int(clamp(float(getattr(point, "temperature", 50) or 50), 0.0, 100.0))
+            mention_count = int(max(0, int(getattr(point, "mention_count", 0) or 0)))
+            momentum = float(getattr(point, "momentum", 0.0) or 0.0)
+            state = str(getattr(point, "state", "neutral") or "neutral")
+            outlook_state = self._derive_outlook_state(temperature, momentum, ordered_points[: index + 1])
+            importance = self._importance_score(
+                temperature=temperature,
+                mention_count=max(mention_count, 1),
+                source_diversity=source_diversity,
+                cross_region_spread=cross_region_spread,
+                market_reaction_score=market_reaction,
+            )
+
+            direction = "accelerating" if momentum >= 2.5 else "cooling" if momentum <= -2.5 else "stabilizing"
+            summary = (
+                f"{label_text} was {direction} with temperature {temperature}/100, "
+                f"{mention_count} mentions, and {source_diversity}-source confirmation."
+            )
+            primary_action = (
+                "Tighten risk budgets and update hedge coverage."
+                if temperature >= 70
+                else "Monitor confirmation flows across rates, FX, and credit."
+            )
+
+            snapshots.append(
+                ThemeDiscussionSnapshot(
+                    as_of=as_of,
+                    title=f"{label_text} memory snapshot",
+                    summary=summary,
+                    state=state,
+                    outlook_state=outlook_state,
+                    importance=importance,
+                    primary_action=primary_action,
+                )
+            )
+
+        deduped: list[ThemeDiscussionSnapshot] = []
+        seen: set[str] = set()
+        for row in sorted(snapshots, key=lambda item: item.as_of, reverse=True):
+            key = row.as_of.isoformat()
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(row)
+            if len(deduped) >= bounded_limit:
+                break
+        return deduped
 
     def _build_story_graph(
         self,

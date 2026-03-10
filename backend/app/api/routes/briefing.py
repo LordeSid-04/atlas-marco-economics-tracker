@@ -55,7 +55,7 @@ async def briefing_news_headlines(
     content_types: str = Query(default="", max_length=240),
     source_types: str = Query(default="", max_length=240),
     search: str = Query(default="", max_length=320),
-    limit: int = Query(default=24, ge=6, le=80),
+    limit: int = Query(default=24, ge=6, le=200),
 ) -> NewsHeadlinesResponse:
     engine = get_briefing_engine()
     return await engine.get_news_headlines(

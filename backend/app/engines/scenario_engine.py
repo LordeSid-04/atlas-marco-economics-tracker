@@ -449,10 +449,22 @@ class ScenarioEngine:
 
     def _extract_prompt_event(self, prompt: str, *, driver: str) -> str:
         text = str(prompt or "").lower()
+        for event in self.catalog["events"]:
+            label = str(event.get("label", "")).strip().lower()
+            if not label:
+                continue
+            normalized_label = re.sub(r"\s+", " ", re.sub(r"[^a-z0-9 +$%-]", " ", label)).strip()
+            normalized_prompt = re.sub(r"\s+", " ", re.sub(r"[^a-z0-9 +$%-]", " ", text)).strip()
+            if normalized_label and normalized_label in normalized_prompt:
+                return str(event["label"])
+
         event_terms: dict[str, tuple[str, ...]] = {
             "Rate Hike +100bp": ("rate hike", "tightening", "hawkish", "yield spike", "policy shock"),
+            "Rate Cut -100bp": ("rate cut", "easing", "dovish", "yield decline", "policy easing"),
             "Oil Spike to $120": ("oil spike", "energy shock", "crude", "brent", "wti", "supply disruption"),
+            "Oil Drop to $60": ("oil drop", "oil collapse", "energy slump", "crude slump", "supply glut"),
             "USD Surge +15%": ("usd surge", "dollar strength", "fx shock", "currency shock", "dxy"),
+            "USD Slide -12%": ("usd slide", "dollar weakness", "weaker dollar", "dxy lower", "currency easing"),
             "Tariff Escalation": ("tariff", "trade war", "import duty", "export restriction", "trade restriction"),
             "AI Capex Boom": ("ai boom", "ai capex", "semiconductor surge", "chip investment", "datacenter build"),
             "Regional Conflict": ("regional conflict", "war", "military", "geopolitical escalation", "missile"),

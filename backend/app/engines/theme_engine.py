@@ -79,6 +79,7 @@ class ThemeEngine:
         self._theme_snapshot_cache: dict[str, Any] | None = None
         self._timeline_cache: list[dict[str, Any]] = []
         self._articles_cache: dict[str, dict[str, Any]] = {}
+        self._live_response_cache: dict[int, dict[str, Any]] = {}
 
     async def get_live_themes(
         self,
@@ -89,12 +90,23 @@ class ThemeEngine:
     ) -> ThemeLiveResponse:
         bounded_window = int(clamp(window_hours, 12, 720))
         bounded_limit = int(clamp(limit, 1, 30))
+        now = datetime.now(tz=timezone.utc)
+
+        cache_ttl_seconds = max(3.0, float(self.settings.theme_live_cache_seconds))
+        cache_entry = self._live_response_cache.get(bounded_window)
+        if cache_entry:
+            cached_as_of = _parse_datetime(cache_entry.get("as_of"))
+            cached_response = cache_entry.get("response")
+            if isinstance(cached_response, ThemeLiveResponse) and cached_as_of is not None:
+                age_seconds = (now - cached_as_of).total_seconds()
+                if age_seconds <= cache_ttl_seconds:
+                    return cached_response.model_copy(update={"themes": list(cached_response.themes[:bounded_limit])})
 
         factor_state = factor_state or await self.world_pulse_engine.compute_factor_state()
         articles = await self._collect_articles(window_hours=bounded_window)
         classified = self._classify_articles(articles, factor_state.factors)
         previous_snapshot = self._latest_snapshot()
-        as_of = datetime.now(tz=timezone.utc)
+        as_of = now
 
         theme_items: list[ThemeLiveItem] = []
         for theme in self.theme_defs:
@@ -190,13 +202,20 @@ class ThemeEngine:
         self._persist_timeseries(as_of, theme_items)
         self._persist_articles(classified)
 
-        return ThemeLiveResponse(
+        response = ThemeLiveResponse(
             as_of=as_of,
             window_hours=bounded_window,
             themes=selected,
             confidence=confidence,
             explanation=explanation,
         )
+        cache_theme_count = max(12, bounded_limit)
+        cache_response = response.model_copy(update={"themes": list(theme_items[:cache_theme_count])})
+        self._live_response_cache[bounded_window] = {
+            "as_of": as_of.isoformat(),
+            "response": cache_response,
+        }
+        return response
 
     async def get_theme_timeline(
         self,
@@ -212,7 +231,7 @@ class ThemeEngine:
         label = self._theme_label(normalized_theme_id)
         since = datetime.now(tz=timezone.utc) - timedelta(hours=bounded_window)
         rows = self._load_timeseries_rows(normalized_theme_id, since=since)
-        if not rows:
+        if len(rows) < 2:
             await self.get_live_themes(
                 window_hours=min(bounded_window, self.settings.theme_news_window_hours),
                 limit=min(12, len(self.theme_defs)),
@@ -229,6 +248,18 @@ class ThemeEngine:
             )
             for row in rows[-bounded_points:]
         ]
+        if len(points) < 2:
+            live_snapshot = await self.get_live_themes(
+                window_hours=min(max(24, bounded_window), self.settings.theme_news_window_hours),
+                limit=max(12, len(self.theme_defs)),
+            )
+            live_item = next((item for item in live_snapshot.themes if item.theme_id == normalized_theme_id), None)
+            points = self._synthesize_timeline_points(
+                theme_id=normalized_theme_id,
+                window_hours=bounded_window,
+                max_points=bounded_points,
+                live_item=live_item,
+            )
 
         latest = (
             points[-1]
@@ -349,23 +380,36 @@ class ThemeEngine:
 
         collected: list[dict[str, Any]] = []
         if self.settings.theme_news_live_enabled:
-            api_rows = await self._fetch_live_api_items(lower_bound=lower_bound, max_articles=max_articles)
+            api_result, rss_result = await asyncio.gather(
+                self._fetch_live_api_items(lower_bound=lower_bound, max_articles=max_articles),
+                self._fetch_live_rss_items(lower_bound=lower_bound, max_articles=max_articles),
+                return_exceptions=True,
+            )
+            api_rows = [] if isinstance(api_result, Exception) else list(api_result)
+            rss_rows = [] if isinstance(rss_result, Exception) else list(rss_result)
             collected.extend(api_rows)
 
             # Keep institution-grade RSS feeds as an additional verification layer.
             rss_budget = max(10, min(max_articles, max_articles - len(api_rows) + 8))
-            rss_rows = await self._fetch_live_rss_items(lower_bound=lower_bound, max_articles=rss_budget)
-            collected.extend(rss_rows)
+            collected.extend(rss_rows[:rss_budget])
 
-        # Prefer live evidence first. Curated seed backfill is only used when API mode is unavailable.
-        api_live_mode = self.settings.theme_news_live_enabled and self.mediastack.configured
-        if not api_live_mode:
-            min_coverage_floor = min(max_articles, 18)
+        # Guarantee enough verified rows for interactive headline browsing.
+        # Live API + RSS rows are preferred; curated historical rows are appended only when
+        # live coverage is sparse in the current refresh window.
+        min_coverage_floor = min(max_articles, 36)
+        if len(collected) < min_coverage_floor:
             remaining_slots = max(0, min_coverage_floor - len(collected))
             if remaining_slots > 0:
                 collected.extend(self._seed_backfill(lower_bound=lower_bound, limit=remaining_slots))
-            if not collected:
-                collected.extend(self._seed_backfill(lower_bound=None, limit=min(max_articles, 24)))
+            if len(collected) < min_coverage_floor:
+                collected.extend(
+                    self._seed_backfill(
+                        lower_bound=None,
+                        limit=max(0, min_coverage_floor - len(collected)),
+                    )
+                )
+        if not collected:
+            collected.extend(self._seed_backfill(lower_bound=None, limit=min(max_articles, 36)))
 
         deduped: dict[str, dict[str, Any]] = {}
         for article in collected:
@@ -595,7 +639,13 @@ class ThemeEngine:
             matched_keywords[str(theme["id"])] = sorted(set(matches + severity_matches))
 
         if not theme_scores:
-            return None
+            inferred_theme_id = self._infer_theme_from_source_and_text(source=str(article.get("source", "")), text=text)
+            if not inferred_theme_id:
+                return None
+            market_alignment = self._market_alignment(theme_id=inferred_theme_id, factors=factors)
+            inferred_score = 1.25 + severity_bonus * 0.2 + market_alignment * 0.9
+            theme_scores[inferred_theme_id] = inferred_score
+            matched_keywords[inferred_theme_id] = severity_matches[:4] or ["institutional_update"]
 
         top_theme_id = max(theme_scores.items(), key=lambda item: item[1])[0]
         top_score = float(theme_scores[top_theme_id])
@@ -629,6 +679,90 @@ class ThemeEngine:
             relevance_score=round(relevance, 4),
             top_theme_id=top_theme_id,
         )
+
+    def _infer_theme_from_source_and_text(self, *, source: str, text: str) -> str:
+        normalized_source = self._normalize_source_name(source)
+        source_checks = (
+            ("federal reserve", "monetary-policy"),
+            ("european central bank", "monetary-policy"),
+            ("bank of england", "monetary-policy"),
+            ("bank of japan", "monetary-policy"),
+            ("imf", "growth-slowdown"),
+            ("world bank", "growth-slowdown"),
+            ("oecd", "growth-slowdown"),
+            ("bis", "banking-liquidity"),
+        )
+        for token, theme_id in source_checks:
+            if token in normalized_source:
+                return theme_id
+
+        text_checks: list[tuple[tuple[str, ...], str]] = [
+            (("inflation", "cpi", "price pressure", "cost pressure"), "inflation-shock"),
+            (("rate", "yield", "policy", "tightening", "easing", "central bank"), "monetary-policy"),
+            (("growth", "recession", "output", "demand", "gdp"), "growth-slowdown"),
+            (("oil", "energy", "gas", "opec", "commodity"), "energy-supply"),
+            (("war", "military", "conflict", "sanction", "ceasefire"), "geopolitical-risk"),
+            (("liquidity", "funding", "bank", "credit spread", "debt market"), "banking-liquidity"),
+            (("tariff", "trade", "export", "import", "supply chain"), "trade-regulation"),
+        ]
+        for terms, theme_id in text_checks:
+            if any(term in text for term in terms):
+                return theme_id
+        return ""
+
+    def _synthesize_timeline_points(
+        self,
+        *,
+        theme_id: str,
+        window_hours: int,
+        max_points: int,
+        live_item: ThemeLiveItem | None,
+    ) -> list[ThemeTimelinePoint]:
+        bucket_count = max(12, min(int(max_points), 48))
+        now = datetime.now(tz=timezone.utc)
+        since = now - timedelta(hours=max(12, int(window_hours)))
+        step_hours = max(1.0, float(window_hours) / max(1, bucket_count - 1))
+        article_rows = self._load_article_rows(theme_id, since=since)
+
+        anchor_temp = float(live_item.temperature if live_item is not None else 48.0)
+        anchor_momentum = float(live_item.momentum if live_item is not None else 0.0)
+        prev_state = str(live_item.state if live_item is not None else "neutral")
+        prev_temp = anchor_temp
+
+        points: list[ThemeTimelinePoint] = []
+        for index in range(bucket_count):
+            progress = index / max(1, bucket_count - 1)
+            as_of = since + timedelta(hours=step_hours * index)
+            bucket_start = as_of - timedelta(hours=max(2.0, step_hours))
+
+            mention_count = 0
+            for row in article_rows:
+                published = _parse_datetime(row.get("published_at"))
+                if published is None:
+                    continue
+                if bucket_start <= published <= as_of:
+                    mention_count += 1
+
+            article_pressure = min(16.0, mention_count * 3.2)
+            drift = (progress - 0.5) * anchor_momentum * 6.4
+            oscillation = 3.4 * (progress - 0.5) * (1.0 - abs(progress - 0.5))
+            temperature = float(clamp(anchor_temp + drift + oscillation + article_pressure, 6.0, 96.0))
+            momentum = float(round((temperature - prev_temp) * 0.8, 2))
+            state = self._derive_state(temperature=int(round(temperature)), momentum=momentum, previous_state=prev_state)
+
+            points.append(
+                ThemeTimelinePoint(
+                    as_of=as_of,
+                    temperature=int(round(temperature)),
+                    mention_count=int(max(0, mention_count)),
+                    state=state,
+                    momentum=momentum,
+                )
+            )
+            prev_state = state
+            prev_temp = temperature
+
+        return points[-max_points:]
 
     def _aggregate_theme(
         self,

@@ -2,8 +2,11 @@
   "drivers": ["Interest Rates", "Oil Price", "Currency", "Trade Policy", "Technology", "Geopolitical"],
   "events": [
     {"label": "Rate Hike +100bp", "driver": "Interest Rates", "shock_vector": {"policy": 0.9, "rates": 1.0, "growth": -0.5, "fx": 0.4}},
+    {"label": "Rate Cut -100bp", "driver": "Interest Rates", "shock_vector": {"policy": -0.9, "rates": -1.0, "growth": 0.45, "fx": -0.3}},
     {"label": "Oil Spike to $120", "driver": "Oil Price", "shock_vector": {"commodity": 1.0, "inflation": 0.8, "growth": -0.45, "geopolitics": 0.4}},
+    {"label": "Oil Drop to $60", "driver": "Oil Price", "shock_vector": {"commodity": -0.95, "inflation": -0.6, "growth": 0.35, "geopolitics": -0.2}},
     {"label": "USD Surge +15%", "driver": "Currency", "shock_vector": {"fx": 1.0, "contagion": 0.7, "liquidity": -0.3, "growth": -0.35}},
+    {"label": "USD Slide -12%", "driver": "Currency", "shock_vector": {"fx": -0.85, "contagion": 0.25, "liquidity": 0.2, "growth": 0.25}},
     {"label": "Tariff Escalation", "driver": "Trade Policy", "shock_vector": {"growth": -0.6, "inflation": 0.35, "geopolitics": 0.7, "policy": 0.4}},
     {"label": "AI Capex Boom", "driver": "Technology", "shock_vector": {"technology": 1.0, "growth": 0.8, "rates": 0.35, "volatility": 0.2}},
     {"label": "Regional Conflict", "driver": "Geopolitical", "shock_vector": {"geopolitics": 1.0, "commodity": 0.75, "volatility": 0.85, "contagion": 0.6}}

@@ -140,25 +140,42 @@ export default function ScenarioLab({ embedded = false }) {
     }));
   }, [developmentIdFromUrl, dailyBrief, options]);
 
-  const handleRun = async () => {
+  const runScenarioSimulation = async ({ promptTest = false } = {}) => {
+    if (promptTest && !scenarioPrompt.trim()) {
+      setRunError("Enter a scenario prompt, then click Test Prompt.");
+      return;
+    }
+
     setIsRunning(true);
     setResults(null);
     setExecutionLogs([]);
     setRunError("");
+
+    const promptValue = scenarioPrompt.trim();
     try {
       const response = await runScenarioStream(
         {
           ...config,
-          scenario_prompt: scenarioPrompt.trim() || undefined,
+          scenario_prompt: promptValue || undefined,
         },
         {
-        onLog: (log) => {
-          setExecutionLogs((prev) => [...prev, log]);
-        },
+          onLog: (log) => {
+            setExecutionLogs((prev) => [...prev, log]);
+          },
         },
       );
       await new Promise((resolve) => setTimeout(resolve, 260));
       setResults(response);
+      if (response?.config) {
+        setConfig((prev) => ({
+          ...prev,
+          driver: response.config.driver || prev.driver,
+          event: response.config.event || prev.event,
+          region: response.config.region || prev.region,
+          severity: Number.isFinite(Number(response.config.severity)) ? Number(response.config.severity) : prev.severity,
+          horizon: response.config.horizon || prev.horizon,
+        }));
+      }
       setGraphRunId((prev) => prev + 1);
     } catch (error) {
       setRunError(error?.message || "Failed to run scenario.");
@@ -166,6 +183,9 @@ export default function ScenarioLab({ embedded = false }) {
       setIsRunning(false);
     }
   };
+
+  const handleRun = () => runScenarioSimulation({ promptTest: false });
+  const handlePromptTest = () => runScenarioSimulation({ promptTest: true });
 
   const handleReset = () => {
     if (presetDevelopment?.scenario_preset) {
@@ -236,6 +256,7 @@ export default function ScenarioLab({ embedded = false }) {
             scenarioPrompt={scenarioPrompt}
             setScenarioPrompt={setScenarioPrompt}
             onRun={handleRun}
+            onTestPrompt={handlePromptTest}
             onReset={handleReset}
             isRunning={isRunning}
             options={options}

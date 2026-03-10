@@ -2,7 +2,7 @@ const API_BASE = "/api/v1";
 const DEV_BACKEND_ORIGIN =
   typeof window !== "undefined" && import.meta.env.DEV ? "http://127.0.0.1:8000" : "";
 const BACKEND_ORIGIN = String(import.meta.env.VITE_BACKEND_ORIGIN || DEV_BACKEND_ORIGIN || "").replace(/\/$/, "");
-const DEFAULT_REQUEST_TIMEOUT_MS = 12000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 22000;
 const SCENARIO_OPTIONS_CACHE_KEY = "atlas:scenario-options:v2";
 const SCENARIO_OPTIONS_CACHE_TTL_MS = 30 * 60 * 1000;
 const WORLD_PULSE_CACHE_KEY = "atlas:world-pulse-live:v1";
@@ -19,7 +19,7 @@ const DAILY_BRIEF_FEED_STATUS_CACHE_KEY = "atlas:briefing-feed-status:v1";
 const DAILY_BRIEF_FEED_STATUS_TTL_MS = 20 * 1000;
 const DEVELOPMENT_DETAIL_CACHE_PREFIX = "atlas:briefing-development:v1";
 const DEVELOPMENT_DETAIL_CACHE_TTL_MS = 25 * 1000;
-const BRIEFING_REQUEST_TIMEOUT_MS = 32000;
+const BRIEFING_REQUEST_TIMEOUT_MS = 70000;
 const THEME_MEMORY_CACHE_PREFIX = "atlas:theme-memory:v1";
 const THEME_MEMORY_CACHE_TTL_MS = 90 * 1000;
 
@@ -30,7 +30,11 @@ export function buildBackendUrl(path) {
 async function request(path, options = {}) {
   const controller = new AbortController();
   const timeoutMs = Number(options.timeoutMs) > 0 ? Number(options.timeoutMs) : DEFAULT_REQUEST_TIMEOUT_MS;
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let didTimeout = false;
+  const timeout = setTimeout(() => {
+    didTimeout = true;
+    controller.abort();
+  }, timeoutMs);
   const externalSignal = options.signal;
   if (externalSignal) {
     if (externalSignal.aborted) {
@@ -48,7 +52,10 @@ async function request(path, options = {}) {
   } catch (error) {
     clearTimeout(timeout);
     if (error?.name === "AbortError") {
-      throw new Error(`Request timed out after ${timeoutMs}ms`);
+      if (didTimeout) {
+        throw new Error(`Request timed out after ${timeoutMs}ms`);
+      }
+      throw new Error("Request aborted");
     }
     if (import.meta.env.DEV) {
       throw new Error("Cannot reach backend API at http://127.0.0.1:8000. Start backend/run_backend_local.bat.");
@@ -220,7 +227,9 @@ export async function fetchThemeLive({ windowHours = 72, limit = 8 } = {}) {
     window_hours: String(windowHours),
     limit: String(limit),
   });
-  const payload = await request(`${API_BASE}/themes/live?${query.toString()}`);
+  const payload = await request(`${API_BASE}/themes/live?${query.toString()}`, {
+    timeoutMs: BRIEFING_REQUEST_TIMEOUT_MS,
+  });
   writeSessionCache(THEME_LIVE_CACHE_KEY, payload);
   return payload;
 }
@@ -230,7 +239,9 @@ export async function fetchThemeTimeline(themeId, { windowHours = 168, maxPoints
     window_hours: String(windowHours),
     max_points: String(maxPoints),
   });
-  return request(`${API_BASE}/themes/${encodeURIComponent(themeId)}/timeline?${query.toString()}`);
+  return request(`${API_BASE}/themes/${encodeURIComponent(themeId)}/timeline?${query.toString()}`, {
+    timeoutMs: BRIEFING_REQUEST_TIMEOUT_MS,
+  });
 }
 
 export async function fetchThemeSources(themeId, { windowHours = 72, limit = 12 } = {}) {
@@ -238,7 +249,9 @@ export async function fetchThemeSources(themeId, { windowHours = 72, limit = 12 
     window_hours: String(windowHours),
     limit: String(limit),
   });
-  return request(`${API_BASE}/themes/${encodeURIComponent(themeId)}/sources?${query.toString()}`);
+  return request(`${API_BASE}/themes/${encodeURIComponent(themeId)}/sources?${query.toString()}`, {
+    timeoutMs: BRIEFING_REQUEST_TIMEOUT_MS,
+  });
 }
 
 export function getCachedWorldPulse() {
@@ -305,7 +318,9 @@ export async function fetchThemeMemory(themeId, { windowHours = 720, limit = 30 
     window_hours: String(windowHours),
     limit: String(limit),
   });
-  const payload = await request(`${API_BASE}/memory/themes/${encodeURIComponent(themeId)}?${query.toString()}`);
+  const payload = await request(`${API_BASE}/memory/themes/${encodeURIComponent(themeId)}?${query.toString()}`, {
+    timeoutMs: BRIEFING_REQUEST_TIMEOUT_MS,
+  });
   writeSessionCache(`${THEME_MEMORY_CACHE_PREFIX}:${themeId}`, payload);
   return payload;
 }
@@ -319,7 +334,7 @@ export async function runNewsNavigator(payload) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
-    timeoutMs: 28000,
+    timeoutMs: 65000,
   });
 }
 

@@ -2,7 +2,7 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { Play, RotateCcw } from "lucide-react";
+import { FlaskConical, Play, RotateCcw } from "lucide-react";
 
 const triggerStyle =
   "h-10 rounded-lg border border-white/15 bg-black/35 px-3 text-zinc-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition duration-200 hover:border-white/25 hover:bg-black/45 focus:ring-0";
@@ -15,6 +15,7 @@ export default function ScenarioControls({
   scenarioPrompt,
   setScenarioPrompt,
   onRun,
+  onTestPrompt,
   onReset,
   isRunning,
   options,
@@ -43,11 +44,22 @@ export default function ScenarioControls({
           <textarea
             value={scenarioPrompt}
             onChange={(event) => setScenarioPrompt(event.target.value)}
-            placeholder="Example: Simulate a severe oil shock in Saudi Arabia over 6 months."
+            placeholder="Example: Simulate a severe oil supply shock in Saudi Arabia over 6 months."
             className="atlas-focus-ring min-h-[88px] w-full resize-y rounded-lg border border-white/15 bg-black/35 p-2.5 text-xs leading-relaxed text-zinc-100 placeholder:text-zinc-500"
           />
-          <div className="mt-1 text-[10px] text-zinc-500">
-            Prompt parser deterministically maps this to driver, event, economy, severity, and horizon.
+          <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+            <div className="text-[10px] text-zinc-500">
+              The prompt parser maps this into driver, event, origin economy, severity, and horizon.
+            </div>
+            <button
+              type="button"
+              onClick={onTestPrompt}
+              disabled={isRunning || !scenarioPrompt.trim()}
+              className="atlas-focus-ring inline-flex items-center gap-1 rounded-full border border-cyan-300/35 bg-cyan-300/14 px-2.5 py-1 text-[10px] uppercase tracking-[0.1em] text-cyan-100 transition hover:border-cyan-200/55 hover:bg-cyan-300/24 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <FlaskConical className="h-3.5 w-3.5" />
+              Test Prompt
+            </button>
           </div>
         </div>
 
@@ -136,7 +148,7 @@ export default function ScenarioControls({
         className="h-11 w-full gap-2 rounded-xl border border-white/24 bg-gradient-to-r from-white/[0.14] to-white/[0.08] text-zinc-100 shadow-[0_14px_34px_rgba(0,0,0,0.38)] transition duration-300 hover:border-white/34 hover:from-white/[0.2] hover:to-white/[0.1]"
       >
         <Play className="h-4 w-4" />
-        {isRunning ? "Simulating..." : "Run Scenario"}
+        {isRunning ? "Simulating..." : "Run Full Scenario"}
       </Button>
     </div>
   );

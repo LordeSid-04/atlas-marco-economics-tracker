@@ -58,6 +58,35 @@ function publicLensText(value) {
     .replace(/FX/gi, "currencies");
 }
 
+function toConciseSentence(value, maxWords = 16) {
+  const words = String(value || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .filter(Boolean);
+  if (!words.length) return "";
+  if (words.length <= maxWords) return words.join(" ");
+  return `${words.slice(0, maxWords).join(" ")}...`;
+}
+
+function toActionCue(value) {
+  const text = String(value || "").toLowerCase();
+  if (/(inflation|price|oil|energy|commodity)/.test(text)) return "Watch inflation-sensitive assets and revise cost assumptions.";
+  if (/(rate|yield|policy|treasury|bond)/.test(text)) return "Review duration exposure and policy-sensitive rate risk.";
+  if (/(currency|fx|dollar|yen|euro)/.test(text)) return "Recheck currency hedges and cross-border cash flows.";
+  if (/(credit|spread|liquidity|funding)/.test(text)) return "Tighten liquidity buffers and monitor credit spreads.";
+  if (/(equity|earnings|valuation|volatility|risk)/.test(text)) return "Reduce concentration risk and stress-test downside scenarios.";
+  return "Monitor headline risk and keep contingency actions ready.";
+}
+
+function playbookSeverityTone(severity) {
+  const level = String(severity || "").toLowerCase();
+  if (level === "critical") return "border-rose-300/45 text-rose-100";
+  if (level === "high") return "border-amber-300/45 text-amber-100";
+  if (level === "medium") return "border-yellow-300/45 text-yellow-100";
+  return "border-cyan-300/35 text-cyan-100";
+}
+
 function ProofConsoleOverlay({ open, onToggle, onClose, selectedProof, healthySources, totalSources, feedStatus }) {
   return (
     <div className="pointer-events-none fixed bottom-5 right-4 z-[65] flex max-w-[94vw] flex-col items-end gap-3">
@@ -544,9 +573,49 @@ export default function WorldPulse({ embedded = false }) {
   const displayedNarrative =
     navigatorHeadline?.summary || selectedDevelopment?.narrative_story || selectedDevelopment?.executive_summary || "";
 
+  const whatThisMeansItems = useMemo(() => {
+    if (!selectedDevelopment) return [];
+    if (selectedGraphNode) {
+      const detail = selectedGraphNode.detail || "";
+      return [
+        {
+          id: `focused-${selectedGraphNode.node_id || selectedGraphNode.label}`,
+          title: selectedGraphNode.label || "Focused signal",
+          insight: toConciseSentence(publicLensText(detail), 20),
+          action: toActionCue(detail),
+        },
+      ];
+    }
+    return (selectedDevelopment.causal_chain || []).slice(0, 3).map((step) => ({
+      id: `${selectedDevelopment.development_id}-step-${step.step}`,
+      title: step.title || `Step ${step.step}`,
+      insight: toConciseSentence(publicLensText(step.detail), 20),
+      action: toActionCue(step.detail),
+    }));
+  }, [selectedDevelopment, selectedGraphNode]);
+
+  const riskPlaybookItems = useMemo(() => {
+    if (!selectedDevelopment) return [];
+    const riskRows = (selectedDevelopment.risk_implications || []).slice(0, 3).map((item, idx) => ({
+      id: `${selectedDevelopment.development_id}-risk-${idx}`,
+      title: `${item.asset_class || "Cross-asset"} | ${item.direction || "monitor"}`,
+      insight: toConciseSentence(item.rationale, 18),
+      action: toActionCue(item.rationale),
+      severity: String(item.severity || "medium").toLowerCase(),
+    }));
+    const actionRows = (selectedDevelopment.recommended_actions || []).slice(0, 2).map((item, idx) => ({
+      id: `${selectedDevelopment.development_id}-recommended-${idx}`,
+      title: "Recommended action",
+      insight: toConciseSentence(item.action, 18),
+      action: toConciseSentence(item.rationale || item.action, 16) || "Apply this action with local risk limits.",
+      severity: "info",
+    }));
+    return [...riskRows, ...actionRows].slice(0, 4);
+  }, [selectedDevelopment]);
+
   const mapInstructionText = mapSelectionMode
     ? `Selecting ${mapSelectionMode} country: click a map pin`
-    : "Hover for country names | Use Set Start/Set End to build relation";
+    : "Rotate, zoom, and click red country markers to inspect spillovers.";
 
   const renderRelationPicker = () => (
     <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.1em]">
@@ -589,7 +658,10 @@ export default function WorldPulse({ embedded = false }) {
   const heroSpilloverPanel = (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <div className="text-[11px] uppercase tracking-[0.16em] text-zinc-400">Cross Region Spillover</div>
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-zinc-400">Cross-Region Spillover Globe</div>
+          <div className="text-[10px] text-zinc-500">Blue oceans, green landmasses, red pins, and directed spillover paths.</div>
+        </div>
         <button
           type="button"
           onClick={() => setMapFullscreenOpen(true)}
@@ -638,9 +710,6 @@ export default function WorldPulse({ embedded = false }) {
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <h2 className="text-xl font-semibold tracking-tight text-zinc-100 sm:text-2xl">Critical Developments</h2>
-              <p className="mt-1.5 max-w-4xl text-sm text-zinc-400">
-                Unified navigator + intelligence panel. Select a top headline or prompt directly to drive the full macro readout.
-              </p>
             </div>
             <div className="flex flex-wrap gap-2">
               <StatBadge label="As Of" value={formatClock(data?.as_of)} />
@@ -697,27 +766,25 @@ export default function WorldPulse({ embedded = false }) {
                     <BookOpenText className="h-4 w-4 text-zinc-300" />
                     What This Means
                   </div>
-                  <div className="text-[10px] uppercase tracking-[0.1em] text-zinc-500">Market Lens + Public Lens</div>
+                  <div className="text-[10px] uppercase tracking-[0.1em] text-zinc-500">Concise takeaways with practical next steps</div>
 
-                  {selectedGraphNode ? (
-                    <div className="mt-2 rounded-lg bg-white/[0.05] p-2.5">
-                      <div className="text-sm font-medium text-zinc-100">{selectedGraphNode.label}</div>
-                      <div className="mt-1 text-xs text-zinc-300">{selectedGraphNode.detail}</div>
-                      <div className="mt-1 text-[11px] text-zinc-400">Public lens: {publicLensText(selectedGraphNode.detail)}</div>
-                    </div>
-                  ) : (
-                    <div className="mt-2 max-h-[220px] space-y-2 overflow-auto pr-1">
-                      {(selectedDevelopment?.causal_chain || []).slice(0, 4).map((step) => (
-                        <div key={`${selectedDevelopment.development_id}-${step.step}`} className="rounded-lg bg-white/[0.04] px-2.5 py-2">
-                          <div className="text-[11px] font-semibold text-zinc-100">
-                            Step {step.step}: {step.title}
+                  <div className="mt-2 space-y-2">
+                    {whatThisMeansItems.length ? (
+                      whatThisMeansItems.map((item) => (
+                        <div key={item.id} className="rounded-lg border border-white/12 bg-white/[0.04] px-2.5 py-2">
+                          <div className="text-[11px] font-semibold text-zinc-100">{item.title}</div>
+                          <div className="mt-1 text-[11px] text-zinc-300">{item.insight}</div>
+                          <div className="mt-1 rounded-md border border-cyan-300/25 bg-cyan-300/10 px-2 py-1 text-[10px] text-cyan-100">
+                            Action: {item.action}
                           </div>
-                          <div className="mt-0.5 text-[11px] text-zinc-300">Market lens: {step.detail}</div>
-                          <div className="mt-0.5 text-[11px] text-zinc-400">Public lens: {publicLensText(step.detail)}</div>
                         </div>
-                      ))}
-                    </div>
-                  )}
+                      ))
+                    ) : (
+                      <div className="rounded-lg border border-white/10 bg-white/[0.02] px-2.5 py-2 text-[11px] text-zinc-400">
+                        Theme interpretation is loading.
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="rounded-xl bg-white/[0.02] p-3">
@@ -725,28 +792,30 @@ export default function WorldPulse({ embedded = false }) {
                     <ShieldAlert className="h-4 w-4 text-zinc-300" />
                     Risk Playbook
                   </div>
-                  <div className="text-[10px] uppercase tracking-[0.1em] text-zinc-500">Actionable for portfolios and households</div>
+                  <div className="text-[10px] uppercase tracking-[0.1em] text-zinc-500">Prioritized actions for teams and households</div>
 
-                  <div className="mt-2 max-h-[220px] space-y-2 overflow-auto pr-1">
-                    {(selectedDevelopment?.risk_implications || []).slice(0, 3).map((item, idx) => (
-                      <div key={`${selectedDevelopment.development_id}-risk-${idx}`} className="rounded-lg bg-white/[0.04] px-2.5 py-2">
-                        <div className="text-[11px] text-zinc-100">
-                          <span className="font-semibold">{item.asset_class}</span> | {item.direction}
+                  <div className="mt-2 space-y-2">
+                    {riskPlaybookItems.length ? (
+                      riskPlaybookItems.map((item) => (
+                        <div key={item.id} className="rounded-lg border border-white/12 bg-white/[0.04] px-2.5 py-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="text-[11px] font-semibold text-zinc-100">{item.title}</div>
+                            <span className={`rounded-full border px-2 py-0.5 text-[9px] uppercase tracking-[0.08em] ${playbookSeverityTone(item.severity)}`}>
+                              {item.severity}
+                            </span>
+                          </div>
+                          <div className="mt-1 text-[11px] text-zinc-300">{item.insight}</div>
+                          <div className="mt-1 flex items-start gap-1.5 text-[10px] text-zinc-200">
+                            <Sparkles className="mt-[1px] h-3.5 w-3.5 shrink-0 text-zinc-300" />
+                            <span>{item.action}</span>
+                          </div>
                         </div>
-                        <div className="mt-0.5 text-[11px] text-zinc-300">Portfolio lens: {item.rationale}</div>
-                        <div className="mt-0.5 text-[11px] text-zinc-400">Public lens: {publicLensText(item.rationale)}</div>
+                      ))
+                    ) : (
+                      <div className="rounded-lg border border-white/10 bg-white/[0.02] px-2.5 py-2 text-[11px] text-zinc-400">
+                        Risk actions are loading.
                       </div>
-                    ))}
-
-                    {(selectedDevelopment?.recommended_actions || []).slice(0, 2).map((action, idx) => (
-                      <div key={`${selectedDevelopment.development_id}-action-${idx}`} className="rounded-lg bg-white/[0.04] px-2.5 py-2 text-[11px] text-zinc-200">
-                        <div className="flex items-start gap-2">
-                          <Sparkles className="mt-[1px] h-3.5 w-3.5 shrink-0" />
-                          <span>{action.action}</span>
-                        </div>
-                        <div className="mt-1 text-zinc-400">Public lens: {publicLensText(action.action)}</div>
-                      </div>
-                    ))}
+                    )}
                   </div>
                 </div>
               </div>
@@ -776,7 +845,7 @@ export default function WorldPulse({ embedded = false }) {
             >
               <div className="absolute inset-x-0 top-0 z-[1300] flex items-center justify-between border-b border-white/10 bg-black/50 px-4 py-3">
                 <div className="text-sm font-semibold uppercase tracking-[0.12em] text-zinc-100">
-                  Cross Region Spillover Intelligence
+                  Cross-Region Spillover Globe
                 </div>
                 <button
                   type="button"

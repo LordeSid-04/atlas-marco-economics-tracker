@@ -5,7 +5,6 @@ import {
   AreaChart,
   Bar,
   BarChart,
-  Brush,
   CartesianGrid,
   Cell,
   ComposedChart,
@@ -101,6 +100,20 @@ function formatTimeLabel(value, mode = "short") {
   });
 }
 
+function formatTimelineTick(value, timelineWindow) {
+  if (!value) return "--";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "--";
+  if (timelineWindow <= 168) {
+    return date.toLocaleString([], {
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+    });
+  }
+  return date.toLocaleDateString([], { month: "short", day: "2-digit" });
+}
+
 function classifyAssetClass(asset) {
   const text = normalizeToken(asset);
   if (/(treasury|bond|yield|rate|duration|curve|swap)/.test(text)) return "Rates";
@@ -124,13 +137,12 @@ function summarizeTrend(points) {
 
 function buildTimelineRows(points = []) {
   if (!Array.isArray(points)) return [];
-  return points.map((point, index) => {
+  const rows = points.map((point, index) => {
     const previous = points[index - 1];
     const state = String(point.state || "neutral").toLowerCase();
     const transition = Boolean(previous && String(previous.state || "").toLowerCase() !== state);
     return {
       as_of: point.as_of,
-      timeLabel: formatTimeLabel(point.as_of, "date"),
       timestamp: Date.parse(point.as_of || "") || 0,
       temperature: Number(point.temperature || 0),
       mention_count: Number(point.mention_count || 0),
@@ -140,7 +152,11 @@ function buildTimelineRows(points = []) {
       stateColor: toStateColor(state),
     };
   });
+  return rows
+    .filter((row) => row.timestamp > 0)
+    .sort((left, right) => left.timestamp - right.timestamp);
 }
+
 
 function buildTransitionFeed(rows = []) {
   if (!rows.length) return [];
@@ -173,11 +189,12 @@ function buildHeatUniverseRows(themes = []) {
       momentum: Number(theme.momentum || 0),
       spread: Number(theme.cross_region_spread || 0),
       bubble: clamp(Math.sqrt(Math.max(mentions, 1)) * 7.5, 18, 68),
+      signalPressure: Number((Number(theme.temperature || 0) * 0.6 + Number(theme.market_reaction_score || 0) * 0.4).toFixed(1)),
     };
   });
 }
 
-function buildRegionAssetBridge(articles = [], selectedTheme) {
+function buildRegionAssetBridge(articles = [], selectedTheme = null) {
   const pairMap = new Map();
 
   (articles || []).forEach((article) => {
@@ -222,8 +239,8 @@ function buildRegionAssetBridge(articles = [], selectedTheme) {
   const regionOrder = Array.from(new Set(pairRows.map((row) => row.region)));
   const assetOrder = Array.from(new Set(pairRows.map((row) => row.asset)));
   const nodes = [
-    ...regionOrder.map((name) => ({ name, side: "region" })),
-    ...assetOrder.map((name) => ({ name, side: "asset" })),
+    ...regionOrder.map((name) => ({ name, side: "region", fill: "#38bdf8" })),
+    ...assetOrder.map((name) => ({ name, side: "asset", fill: "#f59e0b" })),
   ];
 
   const indexByNode = new Map(nodes.map((node, index) => [node.name, index]));
@@ -353,7 +370,104 @@ function deriveCausalReadout(result, selectedTheme) {
   const directionWord = Number(top.impact || 0) >= 0 ? "up" : "down";
   const movement = `${Math.abs(Number(top.impact || 0)).toFixed(top.unit === "bp" ? 1 : 2)}${top.unit === "bp" ? "bp" : "%"}`;
   const themeLabel = selectedTheme?.label || "selected theme";
-  return `${result.config.event} in ${result.config.region} → ${top.asset} ${directionWord} ${movement} → ${themeLabel} risk regime re-prices across ${classifyAssetClass(top.asset)} channels.`;
+  return `${result.config.event} in ${result.config.region} -> ${top.asset} ${directionWord} ${movement} -> ${themeLabel} risk regime reprices across ${classifyAssetClass(top.asset)} channels.`;
+}
+
+function TooltipShell({ title, children }) {
+  return (
+    <div className="min-w-[220px] rounded-xl border border-white/18 bg-[#060a12]/95 px-3 py-2 text-xs text-zinc-200 shadow-[0_14px_34px_rgba(0,0,0,0.5)]">
+      <div className="text-[10px] uppercase tracking-[0.11em] text-zinc-400">{title}</div>
+      <div className="mt-1.5 space-y-1.5">{children}</div>
+    </div>
+  );
+}
+
+function TimelineTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0]?.payload;
+  if (!row) return null;
+  return (
+    <TooltipShell title={`Snapshot ${formatTimeLabel(label)}`}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-zinc-400">Theme heat</span>
+        <span className="font-semibold text-zinc-100">{row.temperature}</span>
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-zinc-400">Source mentions</span>
+        <span className="font-semibold text-zinc-100">{row.mention_count}</span>
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-zinc-400">Momentum</span>
+        <span className="font-semibold text-zinc-100">{Number(row.momentum || 0).toFixed(2)}</span>
+      </div>
+      <div className="inline-flex items-center gap-1 rounded-full border border-white/16 px-2 py-0.5 text-[10px] uppercase tracking-[0.08em] text-zinc-200">
+        State <span style={{ color: toStateColor(row.state) }}>{String(row.state || "neutral").toUpperCase()}</span>
+      </div>
+    </TooltipShell>
+  );
+}
+
+function UniverseTooltip({ active, payload }) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0]?.payload;
+  if (!row) return null;
+  return (
+    <TooltipShell title={row.label || "Theme"}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-zinc-400">Temperature</span>
+        <span className="font-semibold text-zinc-100">{row.temperature}</span>
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-zinc-400">Market reaction</span>
+        <span className="font-semibold text-zinc-100">{row.market_reaction_score}</span>
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-zinc-400">Mentions</span>
+        <span className="font-semibold text-zinc-100">{row.mention_count}</span>
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-zinc-400">Composite pressure</span>
+        <span className="font-semibold text-zinc-100">{row.signalPressure}</span>
+      </div>
+    </TooltipShell>
+  );
+}
+
+function BridgeTooltip({ active, payload }) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0]?.payload;
+  if (!row) return null;
+
+  if (row.region && row.asset) {
+    return (
+      <TooltipShell title="Region-to-Asset Transmission">
+        <div className="text-zinc-100">
+          <span className="font-semibold">{row.region}</span>
+          {" -> "}
+          <span className="font-semibold">{row.asset}</span>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-zinc-400">Link strength</span>
+          <span className="font-semibold text-zinc-100">{Number(row.value || 0).toFixed(2)}</span>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-zinc-400">Supporting articles</span>
+          <span className="font-semibold text-zinc-100">{row.article_count || 0}</span>
+        </div>
+      </TooltipShell>
+    );
+  }
+
+  return (
+    <TooltipShell title={row.side === "region" ? "Region Node" : "Asset Node"}>
+      <div className="font-semibold text-zinc-100">{row.name || "Node"}</div>
+      <div className="text-zinc-400">
+        {row.side === "region"
+          ? "Source-side region cluster in the transmission network."
+          : "Destination asset cluster receiving cross-region pressure."}
+      </div>
+    </TooltipShell>
+  );
 }
 
 export default function ScenarioThemeGraphBoard({ scenarioResult, isScenarioRunning = false }) {
@@ -367,14 +481,16 @@ export default function ScenarioThemeGraphBoard({ scenarioResult, isScenarioRunn
   const {
     data: liveData,
     isLoading: isLoadingLive,
-    isError: isLiveError,
+    isError: _isLiveError,
     error: liveError,
+    refetch: refetchLive,
   } = useQuery({
     queryKey: ["scenario-theme-live", 72, 14],
     queryFn: () => fetchThemeLive({ windowHours: 72, limit: 14 }),
     initialData: cachedThemeLive || undefined,
-    staleTime: 25 * 1000,
-    refetchInterval: 30000,
+    staleTime: 45 * 1000,
+    refetchInterval: isScenarioRunning ? 8000 : 45000,
+    retry: 2,
     refetchOnWindowFocus: false,
   });
 
@@ -405,50 +521,74 @@ export default function ScenarioThemeGraphBoard({ scenarioResult, isScenarioRunn
   const {
     data: timelineData,
     isLoading: isLoadingTimeline,
-    isError: isTimelineError,
+    isError: _isTimelineError,
     error: timelineError,
+    refetch: refetchTimeline,
   } = useQuery({
     queryKey: ["scenario-theme-timeline", selectedTheme?.theme_id || "", timelineWindow],
     queryFn: () => fetchThemeTimeline(selectedTheme.theme_id, { windowHours: timelineWindow, maxPoints: 180 }),
     enabled: Boolean(selectedTheme?.theme_id),
-    staleTime: 25 * 1000,
-    refetchInterval: 35000,
+    staleTime: 5 * 1000,
+    refetchInterval: isScenarioRunning ? 9000 : 60000,
+    retry: 2,
     refetchOnWindowFocus: false,
+    refetchOnMount: true,
   });
 
   const {
     data: sourceData,
     isLoading: isLoadingSources,
-    isError: isSourcesError,
+    isError: _isSourcesError,
     error: sourcesError,
+    refetch: refetchSources,
   } = useQuery({
     queryKey: ["scenario-theme-sources", selectedTheme?.theme_id || "", timelineWindow],
     queryFn: () => fetchThemeSources(selectedTheme.theme_id, { windowHours: Math.max(72, timelineWindow), limit: 36 }),
     enabled: Boolean(selectedTheme?.theme_id),
-    staleTime: 25 * 1000,
-    refetchInterval: 35000,
+    staleTime: 10 * 1000,
+    refetchInterval: isScenarioRunning ? 9000 : 60000,
+    retry: 2,
     refetchOnWindowFocus: false,
+    refetchOnMount: true,
   });
 
   const cachedThemeMemory = getCachedThemeMemory(selectedTheme?.theme_id || "");
   const {
     data: memoryData,
     isLoading: isLoadingMemory,
-    isError: isMemoryError,
+    isError: _isMemoryError,
     error: memoryError,
+    refetch: refetchMemory,
   } = useQuery({
     queryKey: ["scenario-theme-memory", selectedTheme?.theme_id || ""],
     queryFn: () => fetchThemeMemory(selectedTheme.theme_id, { windowHours: 720, limit: 36 }),
     enabled: Boolean(selectedTheme?.theme_id),
     initialData: cachedThemeMemory || undefined,
-    staleTime: 50 * 1000,
-    refetchInterval: 90000,
+    staleTime: 90 * 1000,
+    refetchInterval: isScenarioRunning ? 12000 : 120000,
+    retry: 2,
     refetchOnWindowFocus: false,
   });
 
-  const timelineRows = useMemo(() => buildTimelineRows(timelineData?.points || []), [timelineData?.points]);
+  useEffect(() => {
+    if (!scenarioResult?.as_of) return;
+    refetchLive();
+    refetchTimeline();
+    refetchSources();
+    refetchMemory();
+  }, [refetchLive, refetchMemory, refetchSources, refetchTimeline, scenarioResult?.as_of]);
+
+  useEffect(() => {
+    if (!selectedTheme?.theme_id) return;
+    refetchTimeline();
+    refetchSources();
+  }, [refetchSources, refetchTimeline, selectedTheme?.theme_id, timelineWindow]);
+
+  const rawTimelineRows = useMemo(() => buildTimelineRows(timelineData?.points || []), [timelineData?.points]);
+  const timelineRows = useMemo(() => rawTimelineRows, [rawTimelineRows]);
   const transitionFeed = useMemo(() => buildTransitionFeed(timelineRows), [timelineRows]);
   const trend = useMemo(() => summarizeTrend(timelineRows), [timelineRows]);
+  const timelineTickFormatter = useMemo(() => (value) => formatTimelineTick(value, timelineWindow), [timelineWindow]);
 
   const heatUniverseRows = useMemo(() => buildHeatUniverseRows(themes), [themes]);
 
@@ -457,7 +597,8 @@ export default function ScenarioThemeGraphBoard({ scenarioResult, isScenarioRunn
     [selectedTheme, sourceData?.articles],
   );
 
-  const memoryRows = useMemo(() => buildMemoryRows(memoryData), [memoryData]);
+  const rawMemoryRows = useMemo(() => buildMemoryRows(memoryData), [memoryData]);
+  const memoryRows = useMemo(() => rawMemoryRows, [rawMemoryRows]);
 
   const filterOptions = useMemo(() => buildSourceFilters(sourceData?.articles || []), [sourceData?.articles]);
 
@@ -498,6 +639,8 @@ export default function ScenarioThemeGraphBoard({ scenarioResult, isScenarioRunn
   }, [riskRows]);
 
   const contentLoading = isLoadingTimeline || isLoadingSources || isLoadingMemory;
+  const syncIssue = liveError?.message || timelineError?.message || sourcesError?.message || memoryError?.message || "";
+  const showSyncIssue = Boolean(syncIssue);
 
   return (
     <SurfaceCard tone="strong" className="p-4 sm:p-5">
@@ -506,7 +649,7 @@ export default function ScenarioThemeGraphBoard({ scenarioResult, isScenarioRunn
           <div className="atlas-chip">Interactive Risk Intelligence</div>
           <h3 className="mt-2 text-lg font-semibold tracking-tight text-zinc-100 sm:text-xl">Scenario Theme Explorer</h3>
           <p className="mt-1 text-xs text-zinc-400 sm:text-sm">
-            Track heat transitions, trace region-to-asset propagation, and convert each macro theme into source-backed risk implications.
+            Follow theme momentum over time, understand transmission paths, and convert source evidence into actionable risk signals.
           </p>
         </div>
         <div className="rounded-xl border border-white/14 bg-black/30 px-3 py-2 text-right">
@@ -545,11 +688,19 @@ export default function ScenarioThemeGraphBoard({ scenarioResult, isScenarioRunn
               })}
             </div>
           </div>
+          {isLoadingTimeline ? <div className="mt-1 text-[10px] text-zinc-500">Refreshing selected timeline window...</div> : null}
+          <div className="mt-1 text-[10px] text-zinc-500">
+            X-axis: date progression. Left Y-axis: theme heat. Right Y-axis: article mentions.
+          </div>
 
           <div className="mt-3 h-[256px]">
             {timelineRows.length > 1 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={timelineRows} margin={{ top: 8, right: 14, left: 0, bottom: 10 }}>
+                <ComposedChart
+                  key={`timeline-${selectedTheme?.theme_id || "none"}-${timelineWindow}`}
+                  data={timelineRows}
+                  margin={{ top: 8, right: 14, left: 0, bottom: 10 }}
+                >
                   <defs>
                     <linearGradient id="mentions-area" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#38bdf8" stopOpacity={0.32} />
@@ -558,7 +709,10 @@ export default function ScenarioThemeGraphBoard({ scenarioResult, isScenarioRunn
                   </defs>
                   <CartesianGrid stroke="rgba(255,255,255,0.08)" strokeDasharray="3 3" />
                   <XAxis
-                    dataKey="timeLabel"
+                    type="number"
+                    dataKey="timestamp"
+                    domain={["dataMin", "dataMax"]}
+                    tickFormatter={timelineTickFormatter}
                     tick={{ fill: "#9ca3af", fontSize: 11 }}
                     tickMargin={8}
                     minTickGap={28}
@@ -577,20 +731,7 @@ export default function ScenarioThemeGraphBoard({ scenarioResult, isScenarioRunn
                     width={44}
                     tickMargin={8}
                   />
-                  <Tooltip
-                    contentStyle={{
-                      borderRadius: "0.75rem",
-                      border: "1px solid rgba(255,255,255,0.16)",
-                      background: "rgba(8, 10, 16, 0.95)",
-                    }}
-                    labelStyle={{ color: "#f4f4f5", fontSize: 12 }}
-                    formatter={(value, key) => {
-                      if (key === "temperature") return [`${value}`, "Temperature"];
-                      if (key === "mention_count") return [`${value}`, "Mentions"];
-                      if (key === "momentum") return [`${Number(value).toFixed(2)}`, "Momentum"];
-                      return [value, key];
-                    }}
-                  />
+                  <Tooltip content={<TimelineTooltip />} />
                   <ReferenceLine yAxisId="temp" y={75} stroke="rgba(251,113,133,0.45)" strokeDasharray="4 4" />
                   <ReferenceLine yAxisId="temp" y={40} stroke="rgba(56,189,248,0.45)" strokeDasharray="4 4" />
                   <Area
@@ -619,17 +760,13 @@ export default function ScenarioThemeGraphBoard({ scenarioResult, isScenarioRunn
                     )}
                     isAnimationActive={false}
                   />
-                  <Brush
-                    dataKey="timeLabel"
-                    height={22}
-                    stroke="rgba(255,255,255,0.35)"
-                    travellerWidth={8}
-                  />
                 </ComposedChart>
               </ResponsiveContainer>
             ) : (
               <div className="flex h-full items-center justify-center rounded-lg border border-white/10 bg-black/25 text-xs text-zinc-500">
-                Waiting for enough timeline samples for this theme.
+                {isScenarioRunning
+                  ? "Simulation in progress. Timeline finalizes when the run completes."
+                  : "Awaiting backend timeline synthesis for this theme."}
               </div>
             )}
           </div>
@@ -649,7 +786,10 @@ export default function ScenarioThemeGraphBoard({ scenarioResult, isScenarioRunn
           <div className="rounded-xl border border-white/12 bg-black/28 p-3">
             <div className="flex items-center justify-between gap-2">
               <div className="text-xs uppercase tracking-[0.12em] text-zinc-300">Live Themes Universe</div>
-              <div className="text-[10px] uppercase tracking-[0.12em] text-zinc-500">click bubble</div>
+              <div className="text-[10px] uppercase tracking-[0.12em] text-zinc-500">click a bubble</div>
+            </div>
+            <div className="mt-1 text-[10px] text-zinc-500">
+              Bubble size reflects mention volume. Position shows theme heat vs market reaction.
             </div>
 
             <div className="mt-2 h-[200px]">
@@ -674,21 +814,7 @@ export default function ScenarioThemeGraphBoard({ scenarioResult, isScenarioRunn
                       tickMargin={7}
                     />
                     <ZAxis type="number" dataKey="bubble" range={[70, 460]} />
-                    <Tooltip
-                      cursor={{ strokeDasharray: "3 3" }}
-                      contentStyle={{
-                        borderRadius: "0.75rem",
-                        border: "1px solid rgba(255,255,255,0.16)",
-                        background: "rgba(8, 10, 16, 0.95)",
-                      }}
-                      formatter={(value, name) => {
-                        if (name === "temperature") return [value, "Temperature"];
-                        if (name === "market_reaction_score") return [value, "Market Reaction"];
-                        if (name === "mention_count") return [value, "Mentions"];
-                        return [value, name];
-                      }}
-                      labelFormatter={(_, payload) => payload?.[0]?.payload?.label || "Theme"}
-                    />
+                    <Tooltip content={<UniverseTooltip />} cursor={{ strokeDasharray: "3 3" }} />
                     <Scatter
                       data={heatUniverseRows}
                       shape="circle"
@@ -742,38 +868,30 @@ export default function ScenarioThemeGraphBoard({ scenarioResult, isScenarioRunn
 
       <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-[1fr_1fr]">
         <div className="rounded-xl border border-white/12 bg-black/28 p-3 sm:p-4">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.12em] text-zinc-300">
-              <Network className="h-3.5 w-3.5 text-cyan-300" />
-              Region → Asset Propagation Bridge
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-xs uppercase tracking-[0.12em] text-zinc-300">
+                <Network className="h-3.5 w-3.5 text-cyan-300" />
+                Region → Asset Propagation Bridge
+              </div>
+              <div className="text-[10px] uppercase tracking-[0.12em] text-zinc-500">
+                {bridgeData.observed ? "source-derived" : "theme-estimated"}
+              </div>
             </div>
-            <div className="text-[10px] uppercase tracking-[0.12em] text-zinc-500">
-              {bridgeData.observed ? "source-derived" : "theme-derived"}
+            <div className="mt-1 text-[10px] text-zinc-500">
+              Link width shows how strongly source evidence connects regions to impacted assets.
             </div>
-          </div>
 
           <div className="mt-3 h-[260px]">
             {bridgeData.links.length ? (
               <ResponsiveContainer width="100%" height="100%">
                 <Sankey
                   data={bridgeData}
-                  nodePadding={30}
+                  nodePadding={28}
+                  nodeWidth={11}
                   linkCurvature={0.45}
                   margin={{ left: 8, right: 8, top: 10, bottom: 10 }}
                 >
-                  <Tooltip
-                    contentStyle={{
-                      borderRadius: "0.75rem",
-                      border: "1px solid rgba(255,255,255,0.16)",
-                      background: "rgba(8, 10, 16, 0.95)",
-                    }}
-                    formatter={(value, key, item) => {
-                      if (key === "value") {
-                        return [Number(value).toFixed(2), `${item?.payload?.region || "Region"} → ${item?.payload?.asset || "Asset"}`];
-                      }
-                      return [value, key];
-                    }}
-                  />
+                  <Tooltip content={<BridgeTooltip />} />
                 </Sankey>
               </ResponsiveContainer>
             ) : (
@@ -1015,14 +1133,15 @@ export default function ScenarioThemeGraphBoard({ scenarioResult, isScenarioRunn
         </span>
       </div>
 
-      {(isLiveError || isTimelineError || isSourcesError || isMemoryError) && (
+      {showSyncIssue ? (
         <div className="mt-3 rounded-lg border border-rose-400/25 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
-          Data sync issue: {liveError?.message || timelineError?.message || sourcesError?.message || memoryError?.message || "Unknown error"}
+          Data sync issue: {syncIssue}
         </div>
-      )}
+      ) : null}
       {(isLoadingLive || contentLoading) && (
         <div className="mt-2 text-xs text-zinc-500">Refreshing interactive data layers...</div>
       )}
     </SurfaceCard>
   );
 }
+
