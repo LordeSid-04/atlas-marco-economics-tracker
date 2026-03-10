@@ -1,0 +1,128 @@
+[
+  {
+    "id": "us",
+    "name": "United States",
+    "lat": 38.0,
+    "lng": -96.0,
+    "color": "#22d3ee",
+    "base_heat": 74,
+    "base_confidence": 88,
+    "assets": {
+      "equities": "Growth leadership",
+      "rates": "Upward pressure",
+      "fx": "Strong USD",
+      "commodities": "Neutral",
+      "credit": "Tight spreads"
+    },
+    "narrative_weights": {
+      "AI Boom Resurgence": {"technology": 0.8, "growth": 0.6},
+      "Sticky Inflation": {"inflation": 0.9, "policy": 0.5},
+      "Fiscal Dominance": {"policy": 0.7, "rates": 0.6}
+    }
+  },
+  {
+    "id": "europe",
+    "name": "Europe",
+    "lat": 51.0,
+    "lng": 10.0,
+    "color": "#38bdf8",
+    "base_heat": 60,
+    "base_confidence": 76,
+    "assets": {
+      "equities": "Mixed",
+      "rates": "Downward bias",
+      "fx": "Weak EUR",
+      "commodities": "Bearish energy demand",
+      "credit": "Widening"
+    },
+    "narrative_weights": {
+      "Policy Divergence": {"policy": 0.9, "fx": 0.5},
+      "Energy Transition Drag": {"commodity": 0.8, "growth": 0.6},
+      "Defense Spending Surge": {"policy": 0.6, "inflation": 0.5}
+    }
+  },
+  {
+    "id": "china",
+    "name": "China",
+    "lat": 35.0,
+    "lng": 105.0,
+    "color": "#fbbf24",
+    "base_heat": 66,
+    "base_confidence": 69,
+    "assets": {
+      "equities": "Selective",
+      "rates": "Lower bias",
+      "fx": "Managed CNY",
+      "commodities": "Copper demand support",
+      "credit": "Property stress"
+    },
+    "narrative_weights": {
+      "China Stimulus": {"growth": 0.9, "commodity": 0.6},
+      "Deflation Risk": {"inflation": -0.7, "growth": -0.5},
+      "Tech Decoupling": {"technology": 0.6, "geopolitics": 0.6}
+    }
+  },
+  {
+    "id": "middleeast",
+    "name": "Middle East",
+    "lat": 26.0,
+    "lng": 45.0,
+    "color": "#f97316",
+    "base_heat": 72,
+    "base_confidence": 71,
+    "assets": {
+      "equities": "Defense and energy bid",
+      "rates": "Volatility spike",
+      "fx": "CHF/JPY bid",
+      "commodities": "Oil upside",
+      "credit": "Risk-off widening"
+    },
+    "narrative_weights": {
+      "Commodity Shock Risk": {"commodity": 1.0, "geopolitics": 0.7},
+      "Geopolitical Repricing": {"geopolitics": 1.0, "volatility": 0.5},
+      "Petrodollar Recycling": {"fx": 0.7, "rates": 0.4}
+    }
+  },
+  {
+    "id": "em",
+    "name": "Emerging Markets",
+    "lat": -10.0,
+    "lng": -52.0,
+    "color": "#a78bfa",
+    "base_heat": 57,
+    "base_confidence": 66,
+    "assets": {
+      "equities": "Selective LatAm",
+      "rates": "Mixed",
+      "fx": "Under pressure",
+      "commodities": "Agri exposure",
+      "credit": "Selective"
+    },
+    "narrative_weights": {
+      "Sticky Inflation": {"inflation": 0.8, "policy": 0.5},
+      "Dollar Squeeze": {"fx": 0.9, "rates": 0.5},
+      "Nearshoring Beneficiaries": {"growth": 0.6, "technology": 0.4}
+    }
+  },
+  {
+    "id": "japan",
+    "name": "Japan",
+    "lat": 36.0,
+    "lng": 138.0,
+    "color": "#34d399",
+    "base_heat": 63,
+    "base_confidence": 82,
+    "assets": {
+      "equities": "Bank rally",
+      "rates": "Higher JGB yields",
+      "fx": "JPY strengthening",
+      "commodities": "Neutral",
+      "credit": "Stable"
+    },
+    "narrative_weights": {
+      "Policy Normalization": {"policy": 0.9, "rates": 0.8},
+      "Carry Trade Unwind": {"fx": 0.8, "contagion": 0.7},
+      "Reflation": {"inflation": 0.6, "growth": 0.5}
+    }
+  }
+]

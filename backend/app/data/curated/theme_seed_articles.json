@@ -1,0 +1,98 @@
+[
+  {
+    "id": "seed-fed-guidance-20260309",
+    "title": "Federal Reserve officials reiterate data-dependent policy path after firm core inflation print",
+    "url": "https://www.federalreserve.gov/newsevents.htm",
+    "source": "Federal Reserve",
+    "published_at": "2026-03-09T13:20:00+00:00",
+    "summary": "Officials highlighted elevated core inflation and signaled that policy rate decisions remain conditional on incoming CPI and labor market data."
+  },
+  {
+    "id": "seed-imf-growth-20260309",
+    "title": "IMF flags uneven global growth and rising downside risks from tighter financial conditions",
+    "url": "https://www.imf.org/en/News",
+    "source": "IMF",
+    "published_at": "2026-03-09T10:45:00+00:00",
+    "summary": "The update cites growth slowdown risk in Europe and emerging markets, with credit spreads and funding costs remaining sensitive."
+  },
+  {
+    "id": "seed-wb-energy-20260308",
+    "title": "World Bank notes energy shock vulnerability for import-dependent economies",
+    "url": "https://www.worldbank.org/en/news",
+    "source": "World Bank",
+    "published_at": "2026-03-08T16:10:00+00:00",
+    "summary": "Oil supply uncertainty and LNG bottlenecks may raise inflation pressures and external financing stress."
+  },
+  {
+    "id": "seed-ecb-policy-20260308",
+    "title": "ECB communication emphasizes cautious stance as euro area inflation remains above target",
+    "url": "https://www.ecb.europa.eu/press/html/index.en.html",
+    "source": "European Central Bank",
+    "published_at": "2026-03-08T11:35:00+00:00",
+    "summary": "Policy guidance noted persistent services inflation and uncertainty around the speed of disinflation."
+  },
+  {
+    "id": "seed-reuters-geopol-20260308",
+    "title": "Geopolitical conflict concerns push investors toward safe havens as sanctions debate intensifies",
+    "url": "https://www.reuters.com/world/",
+    "source": "Reuters",
+    "published_at": "2026-03-08T08:05:00+00:00",
+    "summary": "Markets monitored conflict escalation headlines, with renewed worries around commodity supply and volatility."
+  },
+  {
+    "id": "seed-ft-trade-20260307",
+    "title": "New export controls proposal raises trade policy uncertainty across technology supply chains",
+    "url": "https://www.ft.com/world",
+    "source": "Financial Times",
+    "published_at": "2026-03-07T20:55:00+00:00",
+    "summary": "Proposed regulation could alter cross-border manufacturing and compliance costs, especially for semiconductor exposure."
+  },
+  {
+    "id": "seed-bloomberg-liquidity-20260307",
+    "title": "Regional banks face renewed funding stress as deposit migration accelerates",
+    "url": "https://www.bloomberg.com/markets",
+    "source": "Bloomberg",
+    "published_at": "2026-03-07T17:25:00+00:00",
+    "summary": "Analysts point to banking liquidity pressure, wider credit spreads, and elevated balance sheet sensitivity."
+  },
+  {
+    "id": "seed-imf-inflation-20260307",
+    "title": "IMF commentary warns inflation progress remains vulnerable to commodity and shipping shocks",
+    "url": "https://www.imf.org/en/News",
+    "source": "IMF",
+    "published_at": "2026-03-07T12:40:00+00:00",
+    "summary": "The note highlights commodity pass-through effects and policy trade-offs for central banks."
+  },
+  {
+    "id": "seed-wb-em-20260306",
+    "title": "Emerging markets face tighter external financing conditions amid stronger dollar trend",
+    "url": "https://www.worldbank.org/en/news",
+    "source": "World Bank",
+    "published_at": "2026-03-06T15:30:00+00:00",
+    "summary": "Currency and rates volatility increase refinancing risk and may constrain growth in vulnerable economies."
+  },
+  {
+    "id": "seed-reuters-opec-20260306",
+    "title": "OPEC supply language keeps oil market on edge as traders price potential disruptions",
+    "url": "https://www.reuters.com/markets/commodities/",
+    "source": "Reuters",
+    "published_at": "2026-03-06T09:10:00+00:00",
+    "summary": "Oil supply and pipeline security concerns have become a key macro theme for inflation expectations."
+  },
+  {
+    "id": "seed-fed-balance-sheet-20260305",
+    "title": "Federal Reserve minutes discuss balance sheet normalization and liquidity monitoring",
+    "url": "https://www.federalreserve.gov/monetarypolicy/fomcminutes.htm",
+    "source": "Federal Reserve",
+    "published_at": "2026-03-05T19:00:00+00:00",
+    "summary": "Minutes referenced funding conditions, credit channels, and potential spillovers to rates volatility."
+  },
+  {
+    "id": "seed-ecb-growth-20260305",
+    "title": "ECB economists point to weak manufacturing momentum and recession tail risks",
+    "url": "https://www.ecb.europa.eu/pub/economic-bulletin/html/index.en.html",
+    "source": "European Central Bank",
+    "published_at": "2026-03-05T14:05:00+00:00",
+    "summary": "Growth slowdown remains concentrated in trade-sensitive sectors with fragile external demand."
+  }
+]

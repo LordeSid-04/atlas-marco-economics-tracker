@@ -1,0 +1,6 @@
+{
+  "world_pulse": "Heat in {region} is {heat}/100, led by {factor_a} ({contrib_a}) and {factor_b} ({contrib_b}).",
+  "scenario": "Scenario {event} from {region} propagates through {channel_a} and {channel_b}, with peak stress at {peak_node}.",
+  "historical": "Closest analogue is {analogue} ({similarity}%), matching current pressure in {factor_a} and {factor_b}.",
+  "risk": "Top risk concentration is {category_a} ({score_a}) followed by {category_b} ({score_b})."
+}

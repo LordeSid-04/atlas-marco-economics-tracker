@@ -1,0 +1,44 @@
+{
+  "drivers": ["Interest Rates", "Oil Price", "Currency", "Trade Policy", "Technology", "Geopolitical"],
+  "events": [
+    {"label": "Rate Hike +100bp", "driver": "Interest Rates", "shock_vector": {"policy": 0.9, "rates": 1.0, "growth": -0.5, "fx": 0.4}},
+    {"label": "Oil Spike to $120", "driver": "Oil Price", "shock_vector": {"commodity": 1.0, "inflation": 0.8, "growth": -0.45, "geopolitics": 0.4}},
+    {"label": "USD Surge +15%", "driver": "Currency", "shock_vector": {"fx": 1.0, "contagion": 0.7, "liquidity": -0.3, "growth": -0.35}},
+    {"label": "Tariff Escalation", "driver": "Trade Policy", "shock_vector": {"growth": -0.6, "inflation": 0.35, "geopolitics": 0.7, "policy": 0.4}},
+    {"label": "AI Capex Boom", "driver": "Technology", "shock_vector": {"technology": 1.0, "growth": 0.8, "rates": 0.35, "volatility": 0.2}},
+    {"label": "Regional Conflict", "driver": "Geopolitical", "shock_vector": {"geopolitics": 1.0, "commodity": 0.75, "volatility": 0.85, "contagion": 0.6}}
+  ],
+  "regions": ["United States", "Europe", "China", "Middle East", "Emerging Markets", "Japan"],
+  "horizons": ["3 Months", "6 Months", "12 Months", "24 Months"],
+  "horizon_months": {
+    "3 Months": 3,
+    "6 Months": 6,
+    "12 Months": 12,
+    "24 Months": 24
+  },
+  "scenario_graph": {
+    "nodes": [
+      {"id": "origin", "label": "Origin Shock", "x": 50, "y": 15, "color": "#f97316", "factor": "geopolitics"},
+      {"id": "rates", "label": "Rates", "x": 25, "y": 35, "color": "#38bdf8", "factor": "rates"},
+      {"id": "fx", "label": "FX Markets", "x": 75, "y": 35, "color": "#22d3ee", "factor": "fx"},
+      {"id": "equities", "label": "Equities", "x": 15, "y": 58, "color": "#34d399", "factor": "growth"},
+      {"id": "commodities", "label": "Commodities", "x": 50, "y": 50, "color": "#fbbf24", "factor": "commodity"},
+      {"id": "credit", "label": "Credit", "x": 85, "y": 58, "color": "#a78bfa", "factor": "contagion"},
+      {"id": "em", "label": "EM Contagion", "x": 30, "y": 78, "color": "#f472b6", "factor": "contagion"},
+      {"id": "volatility", "label": "Volatility", "x": 70, "y": 78, "color": "#fb923c", "factor": "volatility"}
+    ],
+    "edges": [
+      {"from": "origin", "to": "rates", "weight": 0.9},
+      {"from": "origin", "to": "fx", "weight": 0.82},
+      {"from": "origin", "to": "commodities", "weight": 0.88},
+      {"from": "rates", "to": "equities", "weight": 0.72},
+      {"from": "rates", "to": "credit", "weight": 0.66},
+      {"from": "fx", "to": "credit", "weight": 0.69},
+      {"from": "fx", "to": "em", "weight": 0.78},
+      {"from": "commodities", "to": "em", "weight": 0.7},
+      {"from": "commodities", "to": "volatility", "weight": 0.75},
+      {"from": "equities", "to": "volatility", "weight": 0.55},
+      {"from": "credit", "to": "volatility", "weight": 0.71}
+    ]
+  }
+}
