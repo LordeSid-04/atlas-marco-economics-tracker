@@ -98,8 +98,8 @@ export default function DevelopmentStoryGraph({ graph, onSelectNode, borderless 
   return (
     <div className={rootClass}>
       <div className="mb-2 flex items-center justify-between">
-        <div className="text-xs uppercase tracking-[0.13em] text-zinc-500">Story Pipeline</div>
-        <div className="text-[10px] uppercase tracking-[0.12em] text-zinc-500">select node</div>
+        <div className="text-sm uppercase tracking-[0.13em] text-zinc-500">Story Pipeline</div>
+        <div className="text-[11px] uppercase tracking-[0.12em] text-zinc-500">select node</div>
       </div>
 
       {pipelineNodes.length ? (
@@ -129,8 +129,8 @@ export default function DevelopmentStoryGraph({ graph, onSelectNode, borderless 
                       >
                         <Icon className={`h-7 w-7 ${isActive ? meta.tone : "text-zinc-400"}`} />
                       </div>
-                      <div className={`mt-2 text-[10px] uppercase tracking-[0.12em] ${isActive ? meta.tone : "text-zinc-500"}`}>{meta.title}</div>
-                      <div className={`mt-1 min-h-[34px] text-[11px] leading-tight ${isActive ? "text-zinc-100" : "text-zinc-300"}`}>
+                      <div className={`mt-2 text-[11px] uppercase tracking-[0.12em] ${isActive ? meta.tone : "text-zinc-500"}`}>{meta.title}</div>
+                      <div className={`mt-1 min-h-[40px] text-[13px] leading-tight ${isActive ? "text-zinc-100" : "text-zinc-300"}`}>
                         {clipLabel(node.label, 34)}
                       </div>
                     </motion.button>
@@ -141,7 +141,7 @@ export default function DevelopmentStoryGraph({ graph, onSelectNode, borderless 
                           <div className="h-[2px] w-full rounded-full bg-gradient-to-r from-white/30 via-zinc-100/70 to-white/30" />
                           <ArrowRight className="absolute -right-1 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-300" />
                         </div>
-                        <div className="mt-2 line-clamp-2 text-center text-[10px] uppercase tracking-[0.08em] text-zinc-500">
+                        <div className="mt-2 line-clamp-2 text-center text-[11px] uppercase tracking-[0.08em] text-zinc-500">
                           {edge?.label || "transmission"}
                         </div>
                       </div>
@@ -153,7 +153,7 @@ export default function DevelopmentStoryGraph({ graph, onSelectNode, borderless 
           </div>
         </div>
       ) : (
-        <div className="flex h-[220px] items-center justify-center text-xs text-zinc-500">No graph data available.</div>
+        <div className="flex h-[220px] items-center justify-center text-sm text-zinc-500">No graph data available.</div>
       )}
     </div>
   );

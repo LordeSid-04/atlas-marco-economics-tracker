@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
-import { BrainCircuit, ChevronLeft, ChevronRight, FileUp, Loader2, Send } from "lucide-react";
-import { fetchNewsHeadlines, runNewsNavigator } from "@/api/atlasClient";
+import { BrainCircuit, ChevronLeft, ChevronRight, FileUp, Flame, Loader2, Send, Snowflake, Sparkles } from "lucide-react";
+import { clearMemoryVaultCache, fetchNewsHeadlines, runNewsNavigator } from "@/api/atlasClient";
 import KeywordHighlighter from "@/components/worldpulse/KeywordHighlighter";
 
 const HORIZON_OPTIONS = [
@@ -9,7 +10,6 @@ const HORIZON_OPTIONS = [
   { id: "monthly", label: "Month" },
   { id: "yearly", label: "Year" },
 ];
-const HEADLINE_LIMIT_OPTIONS = [50, 100, 150, 200];
 
 const CONTENT_TYPE_OPTIONS = [
   { id: "macroeconomic_releases", label: "Macro Releases" },
@@ -96,6 +96,18 @@ function insightStateLabel(value) {
   return "Stable";
 }
 
+function trendLabel(value) {
+  const normalized = String(value || "").toLowerCase();
+  if (normalized === "rising") return "On The Rise";
+  if (normalized === "falling") return "On The Fall";
+  return "Sideways";
+}
+
+function toNumber(value, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 function extractTerms(text) {
   const words = String(text || "")
     .toLowerCase()
@@ -135,15 +147,16 @@ function headlinePrompt(headline, horizon) {
 }
 
 export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeSelected = null, borderless = false }) {
+  const queryClient = useQueryClient();
   const [horizon, setHorizon] = useState("daily");
   const [prompt, setPrompt] = useState("");
   const [files, setFiles] = useState([]);
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
-  const [headlinesLimit, setHeadlinesLimit] = useState(50);
   const [isRunning, setIsRunning] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [selectedThemeId, setSelectedThemeId] = useState("");
+  const [themeHotCoolFilter, setThemeHotCoolFilter] = useState("all");
 
   const [headlines, setHeadlines] = useState([]);
   const [headlineTotal, setHeadlineTotal] = useState(0);
@@ -229,15 +242,15 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
   };
 
   useEffect(() => {
-    headlinesRef.current = headlines;
-  }, [headlines]);
-
-  useEffect(() => {
     const interval = setInterval(() => {
       setRefreshTick((prev) => prev + 1);
     }, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    headlinesRef.current = headlines;
+  }, [headlines]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -253,7 +266,7 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
             contentTypes: filters.contentTypes,
             sourceTypes: filters.sourceTypes,
             search: filters.search,
-            limit: headlinesLimit,
+            limit: 50,
           },
           { signal: controller.signal },
         );
@@ -267,8 +280,9 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
         if ((headlinesRef.current || []).length) {
           setHeadlinesError("Live refresh delayed. Showing last synced headlines.");
         } else {
-          setHeadlinesError(loadError?.message || "Failed to load live headlines.");
+          setHeadlines([]);
           setHeadlineTotal(0);
+          setHeadlinesError(loadError?.message || "Failed to load live headlines.");
         }
       } finally {
         setHeadlinesLoading(false);
@@ -279,7 +293,7 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
       controller.abort();
       clearTimeout(debounce);
     };
-  }, [filterSignature, headlinesLimit, horizon, refreshTick]);
+  }, [filterSignature, horizon, refreshTick]);
 
   useEffect(() => {
     if (!headlines.length) {
@@ -326,7 +340,6 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
       const manualPrompt = prompt.trim();
       const selectedTitle = selectedHeadline?.title || "";
       const effectivePrompt = manualPrompt || headlinePrompt(selectedTitle, horizon);
-      const querySeed = filters.search.trim() || manualPrompt || selectedTitle;
 
       if (!effectivePrompt.trim()) {
         setError("Select a headline or enter a prompt to run News Navigator.");
@@ -341,16 +354,69 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
           prompt: effectivePrompt,
           horizon,
           attachments,
+          persist_memory: !auto,
           filters: {
             country: filters.country,
             region: filters.region,
             content_types: filters.contentTypes,
             source_types: filters.sourceTypes,
-            query: querySeed.slice(0, 320),
+            query: filters.search || selectedTitle,
           },
         });
         setResult(payload);
         setSelectedThemeId(payload?.theme_insights?.[0]?.theme_id || "");
+        if (payload?.memory_entry_id) {
+          const historyEntry = {
+            entry_id: payload.memory_entry_id,
+            heading: payload.memory_heading || payload.theme_insights?.[0]?.label || "Saved discussion",
+            created_at: payload.as_of || new Date().toISOString(),
+            theme_label: payload.theme_insights?.[0]?.label || "Unclassified",
+            prompt_preview:
+              effectivePrompt.length > 140 ? `${effectivePrompt.slice(0, 140)}...` : effectivePrompt,
+            source_count: Array.isArray(payload.sources) ? payload.sources.length : 0,
+          };
+
+          queryClient.setQueriesData({ queryKey: ["memory-history"] }, (current) => {
+            if (!current || !Array.isArray(current.entries)) {
+              return {
+                as_of: payload.as_of || new Date().toISOString(),
+                entries: [historyEntry],
+                explanation: { summary: "Memory history updated from latest News Navigator run.", top_factors: [] },
+              };
+            }
+            const filtered = current.entries.filter((item) => item.entry_id !== payload.memory_entry_id);
+            return {
+              ...current,
+              as_of: payload.as_of || current.as_of,
+              entries: [historyEntry, ...filtered],
+            };
+          });
+
+          queryClient.setQueryData(["memory-entry", payload.memory_entry_id], {
+            as_of: payload.as_of || new Date().toISOString(),
+            entry_id: payload.memory_entry_id,
+            heading: payload.memory_heading || historyEntry.heading,
+            created_at: payload.as_of || new Date().toISOString(),
+            theme_id: payload.theme_insights?.[0]?.theme_id || "unclassified",
+            theme_label: payload.theme_insights?.[0]?.label || "Unclassified",
+            prompt: effectivePrompt,
+            answer: payload.answer,
+            horizon: payload.horizon,
+            analysis_mode: payload.analysis_mode,
+            importance_analysis: payload.importance_analysis,
+            local_impact_analysis: payload.local_impact_analysis,
+            global_impact_analysis: payload.global_impact_analysis,
+            emerging_theme_analysis: payload.emerging_theme_analysis,
+            sources: payload.sources || [],
+            attachment_insights: payload.attachment_insights || [],
+            theme_insights: payload.theme_insights || [],
+            explanation: payload.explanation,
+          });
+
+          clearMemoryVaultCache(payload.memory_entry_id);
+          queryClient.invalidateQueries({ queryKey: ["memory-history"] });
+          queryClient.invalidateQueries({ queryKey: ["memory-entry", payload.memory_entry_id] });
+        }
         if (selectedHeadline && typeof onHeadlineSelected === "function") {
           onHeadlineSelected({ headline: selectedHeadline, analysis: payload });
         }
@@ -397,6 +463,42 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
     return insights.find((item) => item.theme_id === selectedThemeId) || insights[0];
   }, [result, selectedThemeId]);
 
+  const macroThemeRows = useMemo(() => {
+    const rows = Array.isArray(result?.theme_insights) ? result.theme_insights : [];
+    const normalized = rows.map((item) => {
+      const hotness = toNumber(item.hotness_score, Math.round(toNumber(item.relevance_score) * 100));
+      const coolness = toNumber(item.coolness_score, Math.max(0, 100 - hotness));
+      return {
+        ...item,
+        hotness,
+        coolness,
+        trend_direction: String(item.trend_direction || "stable").toLowerCase(),
+        plain_english_story:
+          item.plain_english_story ||
+          `${item.label} is ${String(item.heat_state || "neutral").toLowerCase()} based on current live source flow and market confirmation.`,
+      };
+    });
+
+    const filtered = normalized.filter((item) => {
+      if (themeHotCoolFilter === "hot") return item.hotness >= item.coolness;
+      if (themeHotCoolFilter === "cool") return item.coolness > item.hotness;
+      return true;
+    });
+
+    const sorted = [...filtered].sort((left, right) => {
+      if (themeHotCoolFilter === "cool") {
+        return right.coolness - left.coolness;
+      }
+      return right.hotness - left.hotness;
+    });
+    return sorted.slice(0, 5);
+  }, [result?.theme_insights, themeHotCoolFilter]);
+
+  const liveEvidenceCount = useMemo(() => {
+    const rows = Array.isArray(result?.sources) ? result.sources : [];
+    return rows.filter((item) => !String(item.article_id || "").startsWith("seed-")).length;
+  }, [result?.sources]);
+
   const goHeadline = (direction) => {
     if (!headlines.length) return;
     const currentIndex = selectedHeadlineIndex >= 0 ? selectedHeadlineIndex : 0;
@@ -412,7 +514,14 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="text-lg font-semibold text-zinc-100">News Navigator</h3>
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/[0.06] px-3 py-1 text-[11px] uppercase tracking-[0.12em] text-zinc-300">
+            <Sparkles className="h-3.5 w-3.5" />
+            News Navigator + Critical Developments
+          </div>
+          <h3 className="mt-2 text-xl font-semibold text-zinc-100 sm:text-2xl">News Navigator</h3>
+          <p className="mt-1 text-sm leading-relaxed text-zinc-400">
+            Prompt the engine directly or select one of the top 50 trending global headlines.
+          </p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -421,7 +530,7 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
               key={option.id}
               type="button"
               onClick={() => setHorizon(option.id)}
-              className={`atlas-focus-ring rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.11em] transition ${
+              className={`atlas-focus-ring rounded-full border px-3 py-1.5 text-[11px] uppercase tracking-[0.11em] transition ${
                 horizon === option.id
                   ? "border-white/35 bg-white/[0.14] text-zinc-100"
                   : "border-white/20 bg-white/[0.05] text-zinc-300 hover:border-white/30 hover:text-zinc-100"
@@ -436,49 +545,35 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
       <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_250px]">
         <div className="space-y-3">
           <div className="rounded-xl border border-white/12 bg-black/30 p-3">
-            <div className="text-[10px] uppercase tracking-[0.12em] text-zinc-500">Prompt</div>
+            <div className="text-[11px] uppercase tracking-[0.12em] text-zinc-500">Prompt</div>
             <textarea
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
-              placeholder="Example: Explain this headline's impact on local rates, FX, and global risk assets."
+              placeholder="Prompt with whatever you want. Example: Explain this headline's impact on local rates, FX, and global risk assets."
               className="atlas-focus-ring mt-1.5 min-h-[108px] w-full resize-y rounded-xl border border-white/15 bg-black/35 p-3 text-sm leading-relaxed text-zinc-100 placeholder:text-zinc-500"
             />
-            <div className="mt-2 text-[11px] text-zinc-400">
-              Write a custom prompt or select a live headline below. Analysis updates automatically.
+            <div className="mt-2 text-[12px] text-zinc-400">
+              Prompt freely, or select a trending headline below and we will analyze it automatically.
             </div>
           </div>
 
           <div className="rounded-xl border border-white/12 bg-black/30 p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <div className="text-[10px] uppercase tracking-[0.11em] text-zinc-500">Global Headlines</div>
-                <div className="text-[11px] text-zinc-500">
+                <div className="text-[11px] uppercase tracking-[0.11em] text-zinc-500">Top 50 Global Headlines</div>
+                <div className="text-[12px] text-zinc-500">
                   {headlineTotal} matches
                   {hasActiveFilters ? " | filtered" : ""}
                   {lastHeadlinesRefreshAt ? ` | Updated ${formatPublishedAt(lastHeadlinesRefreshAt.toISOString())}` : ""}
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <label className="text-[10px] uppercase tracking-[0.1em] text-zinc-500">Show</label>
-                <select
-                  value={String(headlinesLimit)}
-                  onChange={(event) => setHeadlinesLimit(Number(event.target.value) || 50)}
-                  className="atlas-focus-ring rounded-lg border border-white/18 bg-black/45 px-2.5 py-1.5 text-[11px] text-zinc-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
-                >
-                  {HEADLINE_LIMIT_OPTIONS.map((value) => (
-                    <option key={`headline-limit-${value}`} value={String(value)}>
-                      Top {value}
-                    </option>
-                  ))}
-                </select>
-              </div>
               {headlinesLoading ? (
-                <span className="inline-flex items-center gap-1 text-[11px] text-zinc-400">
+                <span className="inline-flex items-center gap-1 text-[12px] text-zinc-400">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   Refreshing
                 </span>
               ) : (
-                <span className="text-[10px] uppercase tracking-[0.1em] text-zinc-500">Auto refresh 30s</span>
+                <span className="text-[11px] uppercase tracking-[0.1em] text-zinc-500">Auto refresh 30s</span>
               )}
             </div>
 
@@ -487,12 +582,12 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
                 value={filters.country}
                 onChange={(event) => setFilters((prev) => ({ ...prev, country: event.target.value }))}
                 placeholder="Country filter"
-                className="atlas-focus-ring rounded-lg border border-white/15 bg-black/35 px-2.5 py-2 text-xs text-zinc-200 placeholder:text-zinc-500"
+                className="atlas-focus-ring rounded-lg border border-white/15 bg-black/35 px-3 py-2.5 text-sm text-zinc-200 placeholder:text-zinc-500"
               />
               <select
                 value={filters.region}
                 onChange={(event) => setFilters((prev) => ({ ...prev, region: event.target.value }))}
-                className="atlas-focus-ring rounded-lg border border-white/15 bg-black/35 px-2.5 py-2 text-xs text-zinc-200"
+                className="atlas-focus-ring rounded-lg border border-white/15 bg-black/35 px-3 py-2.5 text-sm text-zinc-200"
               >
                 {REGION_OPTIONS.map((option) => (
                   <option key={option.id || "all-regions"} value={option.id}>
@@ -504,12 +599,12 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
                 value={filters.search}
                 onChange={(event) => setFilters((prev) => ({ ...prev, search: event.target.value }))}
                 placeholder="Keyword filter"
-                className="atlas-focus-ring rounded-lg border border-white/15 bg-black/35 px-2.5 py-2 text-xs text-zinc-200 placeholder:text-zinc-500"
+                className="atlas-focus-ring rounded-lg border border-white/15 bg-black/35 px-3 py-2.5 text-sm text-zinc-200 placeholder:text-zinc-500"
               />
             </div>
 
             <div className="mt-2">
-              <div className="text-[10px] uppercase tracking-[0.1em] text-zinc-500">Content Type Filter</div>
+              <div className="text-[11px] uppercase tracking-[0.1em] text-zinc-500">Content Type Filter</div>
               <div className="mt-1.5 flex flex-wrap gap-1.5">
                 {CONTENT_TYPE_OPTIONS.map((option) => {
                   const active = filters.contentTypes.includes(option.id);
@@ -518,7 +613,7 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
                       key={option.id}
                       type="button"
                       onClick={() => toggleFilterValue("contentTypes", option.id)}
-                      className={`atlas-focus-ring rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.08em] transition ${
+                      className={`atlas-focus-ring rounded-full border px-2.5 py-1.5 text-[11px] uppercase tracking-[0.08em] transition ${
                         active
                           ? "border-cyan-200/45 bg-cyan-300/18 text-cyan-100"
                           : "border-white/18 bg-white/[0.03] text-zinc-300 hover:border-white/28 hover:text-zinc-100"
@@ -532,7 +627,7 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
             </div>
 
             <div className="mt-2">
-              <div className="text-[10px] uppercase tracking-[0.1em] text-zinc-500">Source Type Filter</div>
+              <div className="text-[11px] uppercase tracking-[0.1em] text-zinc-500">Source Type Filter</div>
               <div className="mt-1.5 flex flex-wrap gap-1.5">
                 {SOURCE_TYPE_OPTIONS.map((option) => {
                   const active = filters.sourceTypes.includes(option.id);
@@ -541,7 +636,7 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
                       key={option.id}
                       type="button"
                       onClick={() => toggleFilterValue("sourceTypes", option.id)}
-                      className={`atlas-focus-ring rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.08em] transition ${
+                      className={`atlas-focus-ring rounded-full border px-2.5 py-1.5 text-[11px] uppercase tracking-[0.08em] transition ${
                         active
                           ? "border-cyan-200/45 bg-cyan-300/18 text-cyan-100"
                           : "border-white/18 bg-white/[0.03] text-zinc-300 hover:border-white/28 hover:text-zinc-100"
@@ -555,7 +650,7 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
                   <button
                     type="button"
                     onClick={() => setFilters({ ...DEFAULT_FILTERS })}
-                    className="atlas-focus-ring rounded-full border border-white/20 bg-white/[0.02] px-2.5 py-1 text-[10px] uppercase tracking-[0.08em] text-zinc-300 transition hover:border-white/35 hover:text-zinc-100"
+                    className="atlas-focus-ring rounded-full border border-white/20 bg-white/[0.02] px-2.5 py-1.5 text-[11px] uppercase tracking-[0.08em] text-zinc-300 transition hover:border-white/35 hover:text-zinc-100"
                   >
                     Clear Filters
                   </button>
@@ -577,7 +672,7 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
               <select
                 value={selectedHeadline?.article_id || ""}
                 onChange={(event) => setSelectedHeadlineId(event.target.value)}
-                className="atlas-focus-ring min-w-[260px] flex-1 rounded-lg border border-white/18 bg-black/45 px-2.5 py-2 text-xs text-zinc-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+                className="atlas-focus-ring min-w-[260px] flex-1 rounded-lg border border-white/15 bg-black/35 px-3 py-2.5 text-sm text-zinc-200"
               >
                 {!headlines.length ? <option value="">No headlines matched current filters</option> : null}
                 {headlines.map((item, index) => (
@@ -598,29 +693,17 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
               </button>
             </div>
 
-            {headlineTotal > headlines.length && headlinesLimit < 200 ? (
-              <div className="mt-2">
-                <button
-                  type="button"
-                  onClick={() => setHeadlinesLimit((prev) => Math.min(200, prev + 50))}
-                  className="atlas-focus-ring rounded-lg border border-white/20 bg-white/[0.03] px-2.5 py-1.5 text-[10px] uppercase tracking-[0.1em] text-zinc-300 transition hover:border-white/35 hover:text-zinc-100"
-                >
-                  Load More Headlines
-                </button>
-              </div>
-            ) : null}
-
-            {headlinesError ? <div className="mt-2 text-[11px] text-rose-300">{headlinesError}</div> : null}
+            {headlinesError ? <div className="mt-2 text-[12px] text-rose-300">{headlinesError}</div> : null}
 
             <div className="mt-3 rounded-xl border border-white/12 bg-white/[0.04] p-3">
-              <div className="text-[10px] uppercase tracking-[0.12em] text-zinc-400">Hottest Headline</div>
+              <div className="text-[11px] uppercase tracking-[0.12em] text-zinc-400">Hottest Headline</div>
               <KeywordHighlighter
                 text={selectedHeadline?.title || "No headline available yet."}
                 highlights={headlineHighlights}
                 tooltipLabel="Headline keyword"
                 className="mt-1.5 text-xl font-bold leading-tight text-zinc-100 sm:text-2xl"
               />
-              <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-zinc-500">
+              <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-zinc-500">
                 <span>{selectedHeadline?.source || "--"}</span>
                 <span>|</span>
                 <span>{formatPublishedAt(selectedHeadline?.published_at)}</span>
@@ -631,7 +714,7 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
                   </>
                 ) : null}
               </div>
-              <div className="mt-2 text-xs leading-relaxed text-zinc-300">
+              <div className="mt-2 text-sm leading-relaxed text-zinc-300">
                 {selectedHeadline?.summary || "Waiting for reliable source summary..."}
               </div>
             </div>
@@ -639,7 +722,7 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
         </div>
 
         <div className="space-y-3 rounded-xl border border-white/12 bg-black/28 p-3">
-          <label className="atlas-focus-ring flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-white/25 bg-white/[0.03] px-3 py-2 text-xs text-zinc-300 transition hover:border-white/35 hover:text-zinc-100">
+          <label className="atlas-focus-ring flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-white/25 bg-white/[0.03] px-3 py-2.5 text-sm text-zinc-300 transition hover:border-white/35 hover:text-zinc-100">
             <FileUp className="h-4 w-4" />
             Upload Media/Files
             <input type="file" className="hidden" multiple onChange={handleFileChange} />
@@ -648,12 +731,12 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
           <div className="max-h-[110px] space-y-1.5 overflow-auto pr-1">
             {files.length ? (
               files.map((file) => (
-                <div key={`${file.name}-${file.size}`} className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px] text-zinc-300">
+                <div key={`${file.name}-${file.size}`} className="rounded-md border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-[12px] text-zinc-300">
                   {file.name}
                 </div>
               ))
             ) : (
-              <div className="text-[11px] text-zinc-500">No files selected.</div>
+              <div className="text-[12px] text-zinc-500">No files selected.</div>
             )}
           </div>
 
@@ -661,20 +744,90 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
             type="button"
             onClick={() => runAnalysis({ auto: false })}
             disabled={isRunning}
-            className="atlas-focus-ring inline-flex w-full items-center justify-center gap-2 rounded-lg border border-white/28 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.11em] text-zinc-950 transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
+            className="atlas-focus-ring inline-flex w-full items-center justify-center gap-2 rounded-lg border border-white/28 bg-white px-3 py-2.5 text-sm font-semibold uppercase tracking-[0.11em] text-zinc-950 transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            {isRunning ? "Analyzing..." : "Run Analysis"}
+            {isRunning ? "Analyzing..." : "Run Navigator"}
           </button>
 
-          <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5 text-[11px] leading-relaxed text-zinc-300">
+          <div className="rounded-lg border border-cyan-300/20 bg-cyan-300/8 p-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-[11px] uppercase tracking-[0.1em] text-cyan-100/85">Macro Theme Temperature</div>
+              <div className="rounded-full border border-white/20 px-2 py-0.5 text-[9px] uppercase tracking-[0.08em] text-zinc-200">
+                Live evidence {liveEvidenceCount}/{(result?.sources || []).length || 0}
+              </div>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {[
+                { id: "all", label: "All" },
+                { id: "hot", label: "Hot" },
+                { id: "cool", label: "Cool" },
+              ].map((option) => {
+                const active = themeHotCoolFilter === option.id;
+                return (
+                  <button
+                    key={`theme-filter-${option.id}`}
+                    type="button"
+                    onClick={() => setThemeHotCoolFilter(option.id)}
+                    className={`atlas-focus-ring rounded-full border px-2.5 py-1.5 text-[11px] uppercase tracking-[0.08em] transition ${
+                      active
+                        ? "border-white/35 bg-white/[0.14] text-zinc-100"
+                        : "border-white/18 bg-white/[0.03] text-zinc-300 hover:border-white/30 hover:text-zinc-100"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-2.5 space-y-2">
+              {macroThemeRows.length ? (
+                macroThemeRows.map((item) => (
+                  <button
+                    key={`macro-theme-${item.theme_id}`}
+                    type="button"
+                    onClick={() => {
+                      setSelectedThemeId(item.theme_id);
+                      if (typeof onThemeSelected === "function") {
+                        onThemeSelected(item.theme_id, selectedHeadline, result);
+                      }
+                    }}
+                    className="atlas-focus-ring w-full rounded-lg border border-white/14 bg-white/[0.04] px-2.5 py-2 text-left transition hover:border-white/30 hover:bg-white/[0.08]"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-[13px] font-semibold text-zinc-100">{item.label}</div>
+                      <div className="text-[9px] uppercase tracking-[0.09em] text-zinc-300">{trendLabel(item.trend_direction)}</div>
+                    </div>
+                    <div className="mt-1 grid grid-cols-2 gap-1.5 text-[11px] text-zinc-300">
+                      <div className="rounded-md border border-rose-200/20 bg-rose-300/10 px-1.5 py-1">
+                        <Flame className="mr-1 inline h-3 w-3 text-rose-100" />
+                        Hotness {item.hotness}
+                      </div>
+                      <div className="rounded-md border border-cyan-200/20 bg-cyan-300/10 px-1.5 py-1">
+                        <Snowflake className="mr-1 inline h-3 w-3 text-cyan-100" />
+                        Coolness {item.coolness}
+                      </div>
+                    </div>
+                    <div className="mt-1.5 text-[12px] leading-relaxed text-zinc-300">{item.plain_english_story}</div>
+                  </button>
+                ))
+              ) : (
+                <div className="rounded-lg border border-white/12 bg-white/[0.02] px-2.5 py-2 text-[12px] text-zinc-400">
+                  Run Navigator to populate hot/cool macro themes from live evidence.
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 text-[12px] leading-relaxed text-zinc-300">
             Responses include both <span className="font-semibold text-zinc-100">local</span> and{" "}
             <span className="font-semibold text-zinc-100">global</span> impact channels when analysis mode is active.
           </div>
         </div>
       </div>
 
-      {error ? <div className="mt-2 text-xs text-rose-300">{error}</div> : null}
+      {error ? <div className="mt-2 text-sm text-rose-300">{error}</div> : null}
 
       <AnimatePresence>
         {result ? (
@@ -685,7 +838,7 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
             className="mt-4 space-y-4"
           >
             <div className="rounded-xl border border-white/12 bg-black/35 p-3.5">
-              <div className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-[0.11em] text-zinc-500">
+              <div className="mb-2 flex items-center gap-2 text-[11px] uppercase tracking-[0.11em] text-zinc-500">
                 <BrainCircuit className="h-3.5 w-3.5" />
                 Navigator Brief
                 <span className="ml-auto rounded-full border border-white/20 px-2 py-0.5 text-[9px] tracking-[0.1em] text-zinc-300">
@@ -696,27 +849,27 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
                 text={result.answer}
                 highlights={result.highlights || []}
                 tooltipLabel="Analysis keyword"
-                className="whitespace-pre-line text-sm leading-relaxed text-zinc-200"
+                className="whitespace-pre-line text-base leading-relaxed text-zinc-200"
               />
             </div>
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <div className="rounded-xl border border-white/12 bg-black/30 p-3">
-                <div className="text-[10px] uppercase tracking-[0.11em] text-zinc-500">Local Impact</div>
+                <div className="text-[11px] uppercase tracking-[0.11em] text-zinc-500">Local Impact</div>
                 <KeywordHighlighter
                   text={result.local_impact_analysis}
                   highlights={result.highlights || []}
                   tooltipLabel="Local signal keyword"
-                  className="mt-1 text-[12px] leading-relaxed text-zinc-200"
+                  className="mt-1 text-[13px] leading-relaxed text-zinc-200"
                 />
               </div>
               <div className="rounded-xl border border-white/12 bg-black/30 p-3">
-                <div className="text-[10px] uppercase tracking-[0.11em] text-zinc-500">Global Impact</div>
+                <div className="text-[11px] uppercase tracking-[0.11em] text-zinc-500">Global Impact</div>
                 <KeywordHighlighter
                   text={result.global_impact_analysis}
                   highlights={result.highlights || []}
                   tooltipLabel="Global signal keyword"
-                  className="mt-1 text-[12px] leading-relaxed text-zinc-200"
+                  className="mt-1 text-[13px] leading-relaxed text-zinc-200"
                 />
               </div>
             </div>
@@ -724,11 +877,11 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
               <div className="rounded-xl border border-white/12 bg-black/28 p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="text-[10px] uppercase tracking-[0.11em] text-zinc-500">Theme Interpretation</div>
+                  <div className="text-[11px] uppercase tracking-[0.11em] text-zinc-500">Theme Interpretation</div>
                   <select
                     value={activeThemeInsight?.theme_id || ""}
                     onChange={(event) => setSelectedThemeId(event.target.value)}
-                    className="atlas-focus-ring rounded-md border border-white/20 bg-black/40 px-2 py-1 text-[11px] text-zinc-200"
+                    className="atlas-focus-ring rounded-md border border-white/20 bg-black/40 px-2.5 py-1.5 text-[12px] text-zinc-200"
                   >
                     {(result.theme_insights || []).map((insight) => (
                       <option key={insight.theme_id} value={insight.theme_id}>
@@ -741,28 +894,32 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
                 {activeThemeInsight ? (
                   <div className="mt-2 rounded-lg border border-white/10 bg-white/[0.04] p-2.5">
                     <div className="flex items-center justify-between gap-3">
-                      <div className="text-xs font-semibold text-zinc-100">{activeThemeInsight.label}</div>
-                      <div className="rounded-full border border-white/15 px-2 py-0.5 text-[10px] uppercase tracking-[0.08em] text-zinc-300">
+                      <div className="text-sm font-semibold text-zinc-100">{activeThemeInsight.label}</div>
+                      <div className="rounded-full border border-white/15 px-2 py-0.5 text-[11px] uppercase tracking-[0.08em] text-zinc-300">
                         {insightStateLabel(activeThemeInsight.heat_state)}
                       </div>
                     </div>
-                    <div className="mt-1 text-[11px] text-zinc-300">{activeThemeInsight.rationale}</div>
-                    <div className="mt-1 text-[11px] text-zinc-300">
+                    <div className="mt-1 text-[12px] text-zinc-300">{activeThemeInsight.rationale}</div>
+                    <div className="mt-1 text-[12px] text-zinc-300">
                       <span className="font-semibold text-zinc-100">Local:</span> {activeThemeInsight.local_impact}
                     </div>
-                    <div className="mt-1 text-[11px] text-zinc-400">
+                    <div className="mt-1 text-[12px] text-zinc-400">
                       <span className="font-semibold text-zinc-200">Global:</span> {activeThemeInsight.global_impact}
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-2 text-[11px] text-zinc-500">No theme interpretation available yet.</div>
+                  <div className="mt-2 text-[12px] text-zinc-500">No theme interpretation available yet.</div>
                 )}
 
-                <div className="mt-2 text-[10px] text-zinc-500">Saved to Memory Vault entry: {result.memory_entry_id}</div>
+                {result.memory_entry_id ? (
+                  <div className="mt-2 text-[11px] text-zinc-500">Saved to Memory Vault entry: {result.memory_entry_id}</div>
+                ) : (
+                  <div className="mt-2 text-[11px] text-zinc-500">Live analysis only. Use Run Navigator to save this prompt into Memory Vault.</div>
+                )}
               </div>
 
               <div className="rounded-xl border border-white/12 bg-black/28 p-3">
-                <div className="text-[10px] uppercase tracking-[0.11em] text-zinc-500">Verified Source Articles (Live)</div>
+                <div className="text-[11px] uppercase tracking-[0.11em] text-zinc-500">Verified Source Articles (Live)</div>
                 <div className="mt-2 max-h-[260px] space-y-2 overflow-auto pr-1">
                   {(result.sources || []).length ? (
                     (result.sources || []).map((source) => (
@@ -773,8 +930,8 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
                         rel="noreferrer"
                         className="block rounded-lg border border-white/10 bg-white/[0.04] p-2.5 transition hover:border-white/25 hover:bg-white/[0.07]"
                       >
-                        <div className="text-[11px] text-zinc-100">{source.title}</div>
-                        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-zinc-500">
+                        <div className="text-[12px] text-zinc-100">{source.title}</div>
+                        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-zinc-500">
                           <span>{source.source}</span>
                           <span>|</span>
                           <span>{formatPublishedAt(source.published_at)}</span>
@@ -791,7 +948,7 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
                             </>
                           ) : null}
                         </div>
-                        {source.reason ? <div className="mt-1 text-[10px] text-zinc-400">{source.reason}</div> : null}
+                        {source.reason ? <div className="mt-1 text-[11px] text-zinc-400">{source.reason}</div> : null}
                         {(source.content_types || []).length ? (
                           <div className="mt-1.5 flex flex-wrap gap-1">
                             {source.content_types.slice(0, 3).map((type) => (
@@ -804,7 +961,7 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
                       </a>
                     ))
                   ) : (
-                    <div className="text-[11px] text-zinc-500">No reliable live source articles matched this selection.</div>
+                    <div className="text-[12px] text-zinc-500">No reliable live source articles matched this selection.</div>
                   )}
                 </div>
               </div>
@@ -812,17 +969,17 @@ export default function NewsNavigatorPanel({ onHeadlineSelected = null, onThemeS
 
             {(result.attachment_insights || []).length ? (
               <div className="rounded-xl border border-white/12 bg-black/28 p-3">
-                <div className="text-[10px] uppercase tracking-[0.11em] text-zinc-500">Attachment Interpretation</div>
+                <div className="text-[11px] uppercase tracking-[0.11em] text-zinc-500">Attachment Interpretation</div>
                 <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
                   {(result.attachment_insights || []).map((item) => (
                     <div key={item.file_name} className="rounded-lg border border-white/10 bg-white/[0.04] p-2.5">
-                      <div className="text-[11px] font-semibold text-zinc-100">{item.file_name}</div>
-                      <div className="mt-0.5 text-[10px] uppercase tracking-[0.08em] text-zinc-400">{item.media_type}</div>
-                      <div className="mt-1 text-[11px] text-zinc-300">{item.summary}</div>
-                      <div className="mt-1 text-[11px] text-zinc-300">
+                      <div className="text-[12px] font-semibold text-zinc-100">{item.file_name}</div>
+                      <div className="mt-0.5 text-[11px] uppercase tracking-[0.08em] text-zinc-400">{item.media_type}</div>
+                      <div className="mt-1 text-[12px] text-zinc-300">{item.summary}</div>
+                      <div className="mt-1 text-[12px] text-zinc-300">
                         <span className="font-semibold text-zinc-100">Relevance:</span> {item.relevance}
                       </div>
-                      <div className="mt-1 text-[11px] text-zinc-400">
+                      <div className="mt-1 text-[12px] text-zinc-400">
                         <span className="font-semibold text-zinc-200">Impact:</span> {item.impact}
                       </div>
                     </div>

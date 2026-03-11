@@ -31,8 +31,8 @@ export function SectionHeading({ eyebrow, title, description, action, className 
 export function StatBadge({ label, value, tone = "text-zinc-100", className }) {
   return (
     <div className={cn("atlas-pill", className)}>
-      <span className="text-[10px] uppercase tracking-[0.14em] text-zinc-500">{label}</span>
-      <span className={cn("ml-2 text-xs font-medium", tone)}>{value}</span>
+      <span className="text-[11px] uppercase tracking-[0.14em] text-zinc-500">{label}</span>
+      <span className={cn("ml-2 text-sm font-medium", tone)}>{value}</span>
     </div>
   );
 }
