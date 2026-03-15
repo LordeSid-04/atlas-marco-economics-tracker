@@ -91,14 +91,12 @@ export default function Layout({ children }) {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_40%_35%,rgba(255,255,255,0.025),transparent_48%)]" />
       </div>
 
-      <nav className="fixed inset-x-0 top-0 z-50">
+      <nav className="atlas-top-nav fixed inset-x-0 top-0 z-50">
         <div className="mx-auto max-w-[1650px] px-4 pt-3 sm:px-6 lg:px-8">
           <div className="rounded-2xl border border-white/12 bg-black/30 shadow-[0_14px_34px_rgba(0,0,0,0.28)] backdrop-blur-xl">
             <div className="flex h-[74px] items-center justify-between gap-4 px-4 sm:px-5">
               <a href="#signal-desk" onClick={() => handleNavClick("signal-desk")} className="group flex items-center gap-3">
-                <div className="relative flex h-11 w-11 items-center justify-center rounded-xl border border-white/20 bg-white/[0.07] shadow-[0_0_32px_rgba(255,255,255,0.06)] transition group-hover:border-white/30">
-                  <AtlasMark className="h-7 w-7 drop-shadow-[0_0_14px_rgba(255,255,255,0.12)]" />
-                </div>
+                <AtlasMark className="h-7 w-7 shrink-0 drop-shadow-[0_0_14px_rgba(255,255,255,0.12)]" />
                 <div className="leading-tight shrink-0">
                   <div className="text-[1.1rem] font-semibold tracking-[0.32em] text-zinc-100 sm:text-[1.35rem]">ATLAS</div>
                   <div className="hidden text-[11px] uppercase tracking-[0.28em] text-zinc-500 sm:block">
@@ -200,7 +198,7 @@ export default function Layout({ children }) {
         </AnimatePresence>
       </nav>
 
-      <main className="relative z-10 min-h-screen pt-[74px]">{children}</main>
+      <main className="atlas-main relative z-10 min-h-screen pt-[74px]">{children}</main>
     </div>
   );
 }
