@@ -769,14 +769,14 @@ export default function WorldPulse({ embedded = false }) {
     : "Rotate, zoom, and click red country markers to inspect spillovers.";
 
   const renderInlineRelationPicker = () => (
-    <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.1em]">
+    <div className="flex flex-wrap items-center gap-3 text-[12px] uppercase tracking-[0.11em]">
       <button
         type="button"
         onClick={() => setMapSelectionMode("start")}
-        className={`atlas-focus-ring rounded-full border px-2.5 py-1 transition ${
+        className={`atlas-focus-ring rounded-full border px-3.5 py-2 font-medium transition ${
           mapSelectionMode === "start"
-            ? "border-white/40 bg-white/[0.11] text-zinc-100"
-            : "border-white/20 bg-white/[0.05] text-zinc-300 hover:border-white/30 hover:text-zinc-100"
+            ? "border-white/45 bg-white/[0.13] text-zinc-50"
+            : "border-white/20 bg-white/[0.05] text-zinc-200 hover:border-white/30 hover:text-zinc-50"
         }`}
       >
         {mapSelectionMode === "start" ? "Pick Start..." : "Set Start"}
@@ -784,21 +784,21 @@ export default function WorldPulse({ embedded = false }) {
       <button
         type="button"
         onClick={() => setMapSelectionMode("end")}
-        className={`atlas-focus-ring rounded-full border px-2.5 py-1 transition ${
+        className={`atlas-focus-ring rounded-full border px-3.5 py-2 font-medium transition ${
           mapSelectionMode === "end"
-            ? "border-white/40 bg-white/[0.11] text-zinc-100"
-            : "border-white/20 bg-white/[0.05] text-zinc-300 hover:border-white/30 hover:text-zinc-100"
+            ? "border-white/45 bg-white/[0.13] text-zinc-50"
+            : "border-white/20 bg-white/[0.05] text-zinc-200 hover:border-white/30 hover:text-zinc-50"
         }`}
       >
         {mapSelectionMode === "end" ? "Pick End..." : "Set End"}
       </button>
-      <div className="text-zinc-500">{mapStartCountry?.name ? `Start: ${mapStartCountry.name}` : "Start: --"}</div>
-      <div className="text-zinc-500">{mapEndCountry?.name ? `End: ${mapEndCountry.name}` : "End: --"}</div>
+      <div className="font-medium text-zinc-200">{mapStartCountry?.name ? `Start: ${mapStartCountry.name}` : "Start: --"}</div>
+      <div className="font-medium text-zinc-200">{mapEndCountry?.name ? `End: ${mapEndCountry.name}` : "End: --"}</div>
       {(mapStartCountry || mapEndCountry) ? (
         <button
           type="button"
           onClick={clearMapSelection}
-          className="atlas-focus-ring rounded-full border border-white/15 px-2.5 py-1 text-zinc-400 transition hover:border-white/28 hover:text-zinc-100"
+          className="atlas-focus-ring rounded-full border border-white/15 px-3.5 py-2 font-medium text-zinc-200 transition hover:border-white/28 hover:text-zinc-50"
         >
           Clear
         </button>
@@ -807,30 +807,30 @@ export default function WorldPulse({ embedded = false }) {
   );
 
   const renderFullscreenRelationPicker = () => (
-    <div className="absolute left-4 top-[78px] z-[1300] w-[min(680px,calc(100%-2rem))] rounded-2xl border border-cyan-300/20 bg-black/62 p-3 shadow-[0_18px_42px_rgba(0,0,0,0.52)] backdrop-blur-xl">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="absolute left-4 top-[78px] z-[1300] w-[min(360px,calc(100%-2rem))] rounded-2xl border border-cyan-300/20 bg-black/62 p-4 shadow-[0_18px_42px_rgba(0,0,0,0.52)] backdrop-blur-xl">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.15em] text-cyan-100/90">Route Builder</div>
-          <div className="mt-1 text-[11px] text-zinc-400">Set start/end directly or pick pins on the globe.</div>
+          <div className="text-[13px] font-semibold uppercase tracking-[0.15em] text-cyan-100/90">Route Builder</div>
+          <div className="mt-1 text-[13px] leading-relaxed text-zinc-300">Set start/end directly or pick pins on the globe.</div>
         </div>
         {(mapStartCountry || mapEndCountry) ? (
           <button
             type="button"
             onClick={clearMapSelection}
-            className="atlas-focus-ring rounded-full border border-white/20 px-3 py-1 text-[10px] uppercase tracking-[0.1em] text-zinc-300 transition hover:border-white/30 hover:text-zinc-100"
+            className="atlas-focus-ring rounded-full border border-white/20 px-3.5 py-1.5 text-[11px] font-medium uppercase tracking-[0.1em] text-zinc-200 transition hover:border-white/30 hover:text-zinc-100"
           >
             Clear Route
           </button>
         ) : null}
       </div>
 
-      <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
+      <div className="mt-4 grid grid-cols-1 gap-3">
         <label className="space-y-1">
-          <div className="text-[10px] uppercase tracking-[0.11em] text-zinc-500">Start Country</div>
+          <div className="text-[11px] font-medium uppercase tracking-[0.11em] text-zinc-300">Start Country</div>
           <select
             value={mapStartCountry?.id || ""}
             onChange={(event) => setMapStartById(event.target.value)}
-            className="atlas-focus-ring w-full rounded-lg border border-white/18 bg-black/40 px-2.5 py-2 text-sm text-zinc-100 outline-none transition hover:border-white/28"
+            className="atlas-focus-ring w-full rounded-xl border border-white/18 bg-black/40 px-3.5 py-3 text-[14px] text-zinc-100 outline-none transition hover:border-white/28"
           >
             <option value="">Select start country</option>
             {spilloverHotspotOptions.map((spot) => (
@@ -842,11 +842,11 @@ export default function WorldPulse({ embedded = false }) {
         </label>
 
         <label className="space-y-1">
-          <div className="text-[10px] uppercase tracking-[0.11em] text-zinc-500">End Country</div>
+          <div className="text-[11px] font-medium uppercase tracking-[0.11em] text-zinc-300">End Country</div>
           <select
             value={mapEndCountry?.id || ""}
             onChange={(event) => setMapEndById(event.target.value)}
-            className="atlas-focus-ring w-full rounded-lg border border-white/18 bg-black/40 px-2.5 py-2 text-sm text-zinc-100 outline-none transition hover:border-white/28"
+            className="atlas-focus-ring w-full rounded-xl border border-white/18 bg-black/40 px-3.5 py-3 text-[14px] text-zinc-100 outline-none transition hover:border-white/28"
           >
             <option value="">Select end country</option>
             {spilloverHotspotOptions.map((spot) => (
@@ -858,11 +858,11 @@ export default function WorldPulse({ embedded = false }) {
         </label>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.1em]">
+      <div className="mt-4 flex flex-wrap items-center gap-2.5 text-[11px] uppercase tracking-[0.1em]">
         <button
           type="button"
           onClick={() => setMapSelectionMode("start")}
-          className={`atlas-focus-ring rounded-full border px-2.5 py-1 transition ${
+          className={`atlas-focus-ring rounded-full border px-3 py-1.5 font-medium transition ${
             mapSelectionMode === "start"
               ? "border-white/40 bg-white/[0.12] text-zinc-100"
               : "border-white/18 bg-white/[0.04] text-zinc-300 hover:border-white/30 hover:text-zinc-100"
@@ -873,7 +873,7 @@ export default function WorldPulse({ embedded = false }) {
         <button
           type="button"
           onClick={() => setMapSelectionMode("end")}
-          className={`atlas-focus-ring rounded-full border px-2.5 py-1 transition ${
+          className={`atlas-focus-ring rounded-full border px-3 py-1.5 font-medium transition ${
             mapSelectionMode === "end"
               ? "border-white/40 bg-white/[0.12] text-zinc-100"
               : "border-white/18 bg-white/[0.04] text-zinc-300 hover:border-white/30 hover:text-zinc-100"
@@ -882,7 +882,7 @@ export default function WorldPulse({ embedded = false }) {
           {mapSelectionMode === "end" ? "Picking End..." : "Pick End On Globe"}
         </button>
         {relationData ? (
-          <span className="rounded-full border border-cyan-300/35 bg-cyan-300/12 px-2.5 py-1 text-cyan-100">
+          <span className="rounded-full border border-cyan-300/35 bg-cyan-300/12 px-3 py-1.5 font-medium text-cyan-100">
             Quality {String(relationData.relation_quality_label || "mixed")} {relationData.relation_quality_score}/100
           </span>
         ) : null}
@@ -892,19 +892,23 @@ export default function WorldPulse({ embedded = false }) {
 
   const heroSpilloverPanel = (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.16em] text-zinc-400">Cross-Region Spillover Globe</div>
-          <div className="text-[10px] text-zinc-500">Blue oceans, green landmasses, red pins, and directed spillover paths.</div>
+      <div className="space-y-2.5">
+        <div className="whitespace-nowrap text-[15px] font-semibold uppercase tracking-[0.14em] text-zinc-100">
+          Cross-Region Spillover Globe
         </div>
-        <button
-          type="button"
-          onClick={() => setMapFullscreenOpen(true)}
-          className="atlas-focus-ring inline-flex items-center gap-1 rounded-full border border-white/20 bg-white/[0.04] px-3 py-1 text-[10px] uppercase tracking-[0.11em] text-zinc-200 transition hover:border-white/30 hover:bg-white/[0.08]"
-        >
-          <Expand className="h-3.5 w-3.5" />
-          Fullscreen
-        </button>
+        <div className="flex items-center justify-between gap-4">
+          <div className="text-[13px] leading-relaxed text-zinc-200">
+            Blue oceans, green landmasses, red pins, and directed spillover paths.
+          </div>
+          <button
+            type="button"
+            onClick={() => setMapFullscreenOpen(true)}
+            className="atlas-focus-ring inline-flex shrink-0 items-center gap-1.5 self-center rounded-full border border-white/20 bg-white/[0.04] px-4 py-2 text-[12px] font-medium uppercase tracking-[0.11em] text-zinc-50 transition hover:border-white/30 hover:bg-white/[0.08]"
+          >
+            <Expand className="h-3.5 w-3.5" />
+            Fullscreen
+          </button>
+        </div>
       </div>
       {renderInlineRelationPicker()}
 

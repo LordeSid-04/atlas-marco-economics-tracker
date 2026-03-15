@@ -78,6 +78,7 @@ class Settings(BaseSettings):
     )
 
     theme_news_live_enabled: bool = Field(default=True, alias="THEME_NEWS_LIVE_ENABLED")
+    theme_live_cache_seconds: float = Field(default=15.0, alias="THEME_LIVE_CACHE_SECONDS")
     theme_news_window_hours: int = Field(default=72, alias="THEME_NEWS_WINDOW_HOURS")
     theme_news_rss_timeout_seconds: float = Field(default=6.0, alias="THEME_NEWS_RSS_TIMEOUT_SECONDS")
     theme_news_max_articles: int = Field(default=80, alias="THEME_NEWS_MAX_ARTICLES")

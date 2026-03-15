@@ -701,8 +701,10 @@ export default function GlobeMap({
       </div>
 
       {instructionText ? (
-        <div className="pointer-events-none absolute bottom-5 left-4 z-[1200] select-none rounded-full border border-white/15 bg-black/45 px-3 py-1.5 text-[11px] text-zinc-300 backdrop-blur-sm">
-          {instructionText}
+        <div className="pointer-events-none absolute bottom-5 left-4 z-[1200]">
+          <div className="select-none rounded-full border border-white/18 bg-black/55 px-4 py-2 text-[12px] font-medium text-zinc-200 backdrop-blur-sm">
+            {instructionText}
+          </div>
         </div>
       ) : null}
     </div>

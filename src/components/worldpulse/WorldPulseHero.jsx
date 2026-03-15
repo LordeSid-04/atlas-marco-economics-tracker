@@ -16,15 +16,15 @@ export default function WorldPulseHero({
   return (
     <section className="relative">
       <div className="relative z-10 mx-auto max-w-[1650px] px-4 pb-4 pt-3 sm:px-7 sm:pb-5 sm:pt-4 lg:px-10 lg:pb-6 lg:pt-5">
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(340px,420px)] xl:items-start">
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(340px,420px)] xl:items-center">
           <motion.div
             initial={{ opacity: 0, y: 28 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.62, ease: "easeOut" }}
-            className="max-w-4xl"
+            className="flex max-w-4xl flex-col justify-center xl:min-h-[348px]"
           >
-            <div className="atlas-chip border-white/25 bg-white/[0.07] text-zinc-200">
-              <Sparkles className="h-3.5 w-3.5 text-zinc-100" />
+            <div className="atlas-chip w-fit self-start !gap-1.5 !px-2 !py-1 !text-[13px] border-cyan-300/40 bg-cyan-300/[0.1] text-cyan-100 shadow-[0_0_22px_rgba(103,232,249,0.2)]">
+              <Sparkles className="h-3 w-3 shrink-0 text-cyan-100" />
               Live Macro Intelligence
             </div>
             <h1 className="mt-5 text-4xl font-semibold leading-[1.05] tracking-[-0.03em] text-zinc-100 sm:text-5xl lg:text-6xl">

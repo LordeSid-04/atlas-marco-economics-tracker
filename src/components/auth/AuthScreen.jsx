@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ArrowRight, LogIn, Sparkles, UserPlus } from "lucide-react";
+import { ArrowRight, LogIn, UserPlus } from "lucide-react";
 import DnaParticleBackdrop from "@/components/auth/DnaParticleBackdrop";
 import AtlasMark from "@/components/brand/AtlasMark";
 import { Button } from "@/components/ui/button";
@@ -38,52 +38,47 @@ export default function AuthScreen() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#06070b] text-zinc-50">
+    <div className="relative h-screen overflow-hidden bg-[#06070b] text-zinc-50">
       <DnaParticleBackdrop />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(81,129,255,0.18),transparent_34%),radial-gradient(circle_at_80%_20%,rgba(95,211,190,0.14),transparent_28%),linear-gradient(180deg,#07080d_0%,#05060a_52%,#030407_100%)]" />
       <div className="absolute inset-0 opacity-50 [background-image:linear-gradient(rgba(255,255,255,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.045)_1px,transparent_1px)] [background-size:32px_32px]" />
 
-      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1440px] flex-col justify-center px-5 py-10 sm:px-8 lg:grid lg:grid-cols-[1.08fr_0.92fr] lg:gap-10 lg:px-10">
-        <section className="flex flex-col justify-center pb-10 lg:pb-0">
-          <div className="inline-flex w-fit items-center gap-3 rounded-2xl border border-white/12 bg-white/[0.05] px-4 py-3 shadow-[0_18px_60px_rgba(0,0,0,0.28)] backdrop-blur-xl">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/20 bg-white/[0.08]">
-              <AtlasMark className="h-7 w-7 drop-shadow-[0_0_18px_rgba(255,255,255,0.15)]" />
+      <div className="relative z-10 mx-auto flex h-full w-full max-w-[1440px] flex-col justify-center px-5 py-5 sm:px-8 sm:py-6 lg:grid lg:grid-cols-[1.08fr_0.92fr] lg:gap-10 lg:px-10 lg:py-8">
+        <section className="flex h-full items-center">
+          <div className="mx-auto flex w-full max-w-[620px] flex-col justify-center gap-7 py-14">
+            <div className="inline-flex w-fit items-center gap-3 rounded-2xl border border-white/14 bg-[#11151d]/92 px-4 py-3 shadow-[0_18px_60px_rgba(0,0,0,0.34)] backdrop-blur-xl">
+              <AtlasMark className="h-7 w-7 shrink-0 text-zinc-50 drop-shadow-[0_0_18px_rgba(255,255,255,0.18)]" />
+              <div>
+                <div className="text-[1.35rem] font-semibold tracking-[0.34em] text-zinc-50">ATLAS</div>
+                <div className="text-[11px] uppercase tracking-[0.28em] text-zinc-300">Macro Intelligence System</div>
+              </div>
             </div>
-            <div>
-              <div className="text-[1.35rem] font-semibold tracking-[0.34em] text-zinc-100">ATLAS</div>
-              <div className="text-[11px] uppercase tracking-[0.28em] text-zinc-400">Macro Intelligence System</div>
-            </div>
-          </div>
 
-          <div className="mt-10 max-w-2xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/8 px-4 py-2 text-[11px] font-medium uppercase tracking-[0.28em] text-cyan-100">
-              <Sparkles className="h-3.5 w-3.5" />
-              Supabase-Backed Access
+            <div className="max-w-2xl">
+              <h1 className="text-4xl font-semibold leading-[0.95] text-zinc-50 sm:text-5xl lg:text-[4.4rem]">
+                Sign in to the Atlas research workspace.
+              </h1>
+              <p className="mt-5 max-w-xl text-base leading-7 text-zinc-300 sm:text-lg">
+                Use your Atlas account to access Signal Desk, Scenario Lab, and the Memory Vault.
+              </p>
             </div>
-            <h1 className="mt-6 text-4xl font-semibold leading-[0.95] text-zinc-50 sm:text-5xl lg:text-[4.4rem]">
-              Sign in to the Atlas research workspace.
-            </h1>
-            <p className="mt-5 max-w-xl text-base leading-7 text-zinc-300 sm:text-lg">
-              Use your Atlas account to access Signal Desk, Scenario Lab, and the Memory Vault. New users can
-              register here and begin working immediately.
-            </p>
-          </div>
 
-          <div className="mt-10 grid gap-4 sm:grid-cols-3">
-            <FeatureCard title="News Navigator Memory" body="Prompt runs create durable records that can be reopened in Memory Vault." />
-            <FeatureCard title="Supabase Sessions" body="Authentication is handled through Supabase and reused across the app." />
-            <FeatureCard title="Research Continuity" body="Saved sessions carry prompt context, model output, and linked sources into Memory Vault." />
+            <div className="grid gap-4 sm:grid-cols-3">
+              <FeatureCard title="News Navigator Memory" body="Prompt runs create durable records that can be reopened in Memory Vault." />
+              <FeatureCard title="Supabase Sessions" body="Authentication is handled through Supabase and reused across the app." />
+              <FeatureCard title="Research Continuity" body="Saved sessions carry prompt context, model output, and linked sources into Memory Vault." />
+            </div>
           </div>
         </section>
 
-        <section className="relative">
-          <div className="rounded-[32px] border border-white/12 bg-black/45 p-4 shadow-[0_35px_120px_rgba(0,0,0,0.42)] backdrop-blur-2xl sm:p-6 lg:p-8">
+        <section className="relative flex h-full items-center justify-center">
+          <div className="w-full max-w-[520px] rounded-[32px] border border-white/12 bg-black/45 p-4 shadow-[0_35px_120px_rgba(0,0,0,0.42)] backdrop-blur-2xl sm:p-6 lg:p-8">
             <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-1">
               <ModeButton active={mode === "login"} onClick={() => setMode("login")} icon={LogIn} label="Log In" />
               <ModeButton active={mode === "signup"} onClick={() => setMode("signup")} icon={UserPlus} label="Sign Up" />
             </div>
 
-            <div className="mt-6 rounded-[28px] border border-white/10 bg-white/[0.03] p-5 sm:p-6">
+            <div className="mt-6 rounded-[28px] border border-white/10 bg-white/[0.03] px-5 py-5 sm:px-6 sm:py-6">
               <div className="mb-5">
                 <h2 className="text-2xl font-semibold text-zinc-50">{mode === "login" ? "Welcome back" : "Create your Atlas account"}</h2>
                 <p className="mt-2 text-sm leading-6 text-zinc-400">
@@ -205,15 +200,22 @@ function StyledInput(props) {
   return (
     <Input
       {...props}
-      className="mt-2 h-12 rounded-2xl border-white/10 bg-black/35 px-4 text-base text-zinc-50 placeholder:text-zinc-500 focus-visible:ring-white/40"
+      className="mt-2 h-12 rounded-2xl border-white/10 bg-black/35 px-4 text-base text-zinc-50 shadow-[inset_0_0_0_1000px_rgba(10,10,14,0.38)] placeholder:text-zinc-500 focus-visible:ring-white/40 autofill:border-white/10 autofill:[-webkit-text-fill-color:#f8fafc] autofill:shadow-[inset_0_0_0_1000px_rgba(10,10,14,0.38)]"
     />
   );
 }
 
 function FeatureCard({ title, body }) {
+  const titleClassName =
+    title === "News Navigator Memory"
+      ? "text-rose-300"
+      : title === "Supabase Sessions"
+        ? "text-cyan-300"
+        : "text-amber-300";
+
   return (
     <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 backdrop-blur-xl">
-      <div className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-200">{title}</div>
+      <div className={`text-sm font-semibold uppercase tracking-[0.18em] ${titleClassName}`}>{title}</div>
       <p className="mt-3 text-sm leading-6 text-zinc-400">{body}</p>
     </div>
   );
